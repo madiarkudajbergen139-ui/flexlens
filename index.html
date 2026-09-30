@@ -535,11 +535,40 @@ let stats, flashUntil = 0, flash = null, lastSpeak = 0, lastSpoken = "", voice =
 
 const newStats = () => ({ ok: EX.map(() => 0), err: EX.map(() => 0), kc: EX.map(() => 0), q: [], mistakes: {}, t0: performance.now() });
 function setBanner(t, m) { const b = $("banner"); b.className = t || ""; b.textContent = m; }
+// ---------- голос ----------
+// Короткие фразы для ошибок: тренер говорит суть, подробности — на экране
+const SAY = [
+  [/Колени (внутрь|заваливаются|сходились)/, "Колени наружу"],
+  [/Мелкий присед/, "Присядь ниже"],
+  [/Руки низко/, "Руки выше"],
+  [/несинхронно|рука отстаёт/, "Обе руки вместе"],
+  [/локти|Согнуты локти/i, "Выпрями локти"],
+  [/Таз уходит/, "Таз на месте"],
+  [/Слабый наклон/, "Наклон глубже"],
+  [/Таз провисает|Таз проваливался/, "Подтяни таз"],
+  [/Таз (слишком )?высоко|Таз был поднят/, "Опусти таз"],
+  [/Неглубокое отжимание/, "Опустись ниже"],
+  [/Неполный подъём/, "Поднимись выше"],
+  [/Ноги выпрям/, "Согни колени"],
+  [/Слишком быстро/, "Медленнее"]
+];
+const shortSay = text => (SAY.find(([re]) => re.test(text)) || [0, text])[1];
+// Выбираем самый естественный русский голос, какой есть в системе
+let ruVoice = null;
+function pickVoice() {
+  const vs = ("speechSynthesis" in window ? speechSynthesis.getVoices() : []).filter(v => /^ru/i.test(v.lang));
+  const rank = v => [/natural|online|neural/i, /google/i, /milena|katya|yuri/i, /svetlana|dariya|irina|pavel/i].findIndex(re => re.test(v.name));
+  ruVoice = vs.sort((a, b) => (rank(a) < 0 ? 9 : rank(a)) - (rank(b) < 0 ? 9 : rank(b)))[0] || null;
+}
+if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
 function speak(text) {
   const now = performance.now();
-  if (!voice || !("speechSynthesis" in window) || text === lastSpoken && now - lastSpeak < 6000 || now - lastSpeak < 2500) return;
+  if (!voice || !("speechSynthesis" in window) || text === lastSpoken && now - lastSpeak < 5000 || now - lastSpeak < 1800) return;
   lastSpeak = now; lastSpoken = text; speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text); u.lang = "ru-RU"; speechSynthesis.speak(u);
+  const u = new SpeechSynthesisUtterance(text); u.lang = "ru-RU";
+  if (ruVoice) u.voice = ruVoice;
+  u.rate = 1.05; u.pitch = 1.05; u.volume = 1;
+  speechSynthesis.speak(u);
 }
 function renderSide() {
   const sum = a => a.reduce((x, y) => x + y, 0);
@@ -578,7 +607,7 @@ function finish() {
   $("againBtn").onclick = begin; $("shareBtn").onclick = () => shareCard(entry);
   confetti(); [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .2), i * 140));
   clearEx(); $("counter").textContent = "";
-  speak(`Готово. Ваш результат: ${score} очков, точность ${acc} процентов. Сожжено около ${Math.round(totalKcal())} калорий.`);
+  speak(`Готово! ${score} очков, точность ${acc} процентов.`);
 }
 
 // ---------- жест «рука вверх» = кнопка ----------
@@ -649,13 +678,13 @@ function loop() {
         else {
           stats.err[idx]++; bad = o.rep.bad;
           const m = stats.mistakes[e.id + o.rep.key] ||= { key: o.rep.key, n: 0, msg: o.rep.msg }; m.n++; m.msg = o.rep.msg;
-          stats.q.push(35); beep(200, .25, "sawtooth"); flash = { t: "err", m: o.rep.msg }; speak(o.rep.msg);
+          stats.q.push(35); beep(200, .25, "sawtooth"); flash = { t: "err", m: o.rep.msg }; speak(shortSay(o.rep.key + " " + o.rep.msg));
         }
         flashUntil = now + 3000; renderSide();
       }
       if (stats.ok[idx] >= e.target) { if (e.unit) stats.q.push(Math.max(40, 100 - stats.err[idx] * 15)); beep(1320, .2); setTimeout(nextExercise, 900); phase = "between"; }
       const show = now < flashUntil ? flash : o.live;
-      if (show) { setBanner(show.t, show.m); if (show.t === "err" && !o.rep) speak(show.m); }
+      if (show) { setBanner(show.t, show.m); if (show.t === "err" && !o.rep) speak(shortSay(show.m)); }
     }
   } else if (phase === "result") {
     if (handGesture(p, now)) begin();
