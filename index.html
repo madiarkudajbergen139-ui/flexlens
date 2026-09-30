@@ -564,12 +564,26 @@ if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged 
 function speak(text) {
   const now = performance.now();
   if (!voice || !("speechSynthesis" in window) || text === lastSpoken && now - lastSpeak < 5000 || now - lastSpeak < 1800) return;
-  lastSpeak = now; lastSpoken = text; speechSynthesis.cancel();
+  lastSpeak = now; lastSpoken = text;
   const u = new SpeechSynthesisUtterance(text); u.lang = "ru-RU";
   if (ruVoice) u.voice = ruVoice;
   u.rate = 1.05; u.pitch = 1.05; u.volume = 1;
-  speechSynthesis.speak(u);
+  const go = () => { speechSynthesis.resume(); speechSynthesis.speak(u); };
+  if (speechSynthesis.speaking || speechSynthesis.pending) { speechSynthesis.cancel(); setTimeout(go, 80); } else go();
 }
+// Телефоны (iPhone, Android) разрешают звук и речь только после касания экрана.
+// При первом касании «будим» речь и звук, дальше подсказки работают сами.
+let unlocked = false;
+function unlockAudio() {
+  if (unlocked) return; unlocked = true;
+  try { ac = ac || new AudioContext(); ac.resume(); } catch {}
+  if ("speechSynthesis" in window) {
+    pickVoice();
+    const u = new SpeechSynthesisUtterance(" "); u.volume = 0; u.lang = "ru-RU";
+    speechSynthesis.speak(u);
+  }
+}
+["pointerdown", "touchend", "click", "keydown"].forEach(ev => addEventListener(ev, unlockAudio, { capture: true, passive: true }));
 function renderSide() {
   const sum = a => a.reduce((x, y) => x + y, 0);
   $("sOk").textContent = sum(stats.ok.filter((_, i) => !EX[i].unit)); $("sErr").textContent = sum(stats.err);
@@ -655,7 +669,7 @@ function loop() {
   let bad = [];
   if (phase === "menu") {
     setBanner(p ? "info" : "warn", p ? "Подними руку выше головы и держи 1.5 сек — начнём" : "Встань перед камерой так, чтобы было видно тело");
-    $("center").textContent = `Готов к тренировке\nВыбери упражнения справа и встань так, чтобы камера видела тебя целиком`;
+    $("center").textContent = `Готов к тренировке\nВыбери упражнения ${matchMedia("(max-width: 960px)").matches ? "ниже" : "справа"} и встань так, чтобы камера видела тебя целиком${matchMedia("(pointer: coarse)").matches && !unlocked ? "\n\nНажми «Начать тренировку», чтобы включился голос тренера" : ""}`;
     if (handGesture(p, now)) begin();
   } else if (phase === "ready") {
     const e = EX[idx], left = Math.ceil((readyUntil - now) / 1000);
