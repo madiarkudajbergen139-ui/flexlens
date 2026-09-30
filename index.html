@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlexLens — тело вместо джойстика</title>
+<style>
+:root{--bg:#0b0f17;--card:#ffffff0d;--line:#ffffff1a;--ink:#f2f5fa;--mute:#93a0b4;--ok:#34f5a5;--err:#ff5d73;--warn:#ffcf5c;--acc:#7c8cff}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);font-family:Inter,"Segoe UI",system-ui,sans-serif;background:radial-gradient(900px 500px at 8% -10%,#3b2f8f66,transparent),radial-gradient(800px 500px at 100% 0,#0d8f7a55,transparent),var(--bg)}
+header{max-width:1240px;margin:0 auto;padding:18px 18px 0;display:flex;align-items:center;gap:12px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--ok));display:grid;place-items:center;font-size:20px}
+header h1{font-size:26px;font-weight:800;margin:0;letter-spacing:-.04em}header h1 em{font-style:normal;background:linear-gradient(90deg,var(--acc),var(--ok));-webkit-background-clip:text;background-clip:text;color:transparent}header span{color:var(--mute);font-size:13px}
+#app{display:grid;grid-template-columns:1fr 340px;gap:18px;max-width:1240px;margin:0 auto;padding:18px}
+@media(max-width:900px){#app{grid-template-columns:1fr}}
+#stage{position:relative;background:#000;border-radius:24px;overflow:hidden;aspect-ratio:4/3;border:1px solid var(--line);box-shadow:0 30px 80px #0009}
+video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:18px}
+#top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+#exName{padding:8px 14px;border-radius:999px;background:#0009;backdrop-filter:blur(10px);border:1px solid var(--line);font-weight:700}
+#exName:empty{display:none}
+.cnt{text-align:right}#counter{font-size:54px;font-weight:800;letter-spacing:-.03em;line-height:1;text-shadow:0 2px 12px #000}
+#barw{height:6px;width:150px;margin-left:auto;background:#fff3;border-radius:9px;margin-top:8px;overflow:hidden}
+#bar{height:100%;width:0;background:linear-gradient(90deg,var(--acc),var(--ok));transition:width .3s}
+#center{align-self:center;text-align:center;max-width:88%;font-size:22px;font-weight:600;padding:20px 26px;border-radius:20px;background:#0b0f17b8;backdrop-filter:blur(14px);border:1px solid var(--line);white-space:pre-line}
+#center:empty{display:none}
+#banner{display:flex;gap:12px;align-items:center;padding:14px 18px;border-radius:16px;background:#0b0f17c0;backdrop-filter:blur(14px);border:1px solid var(--line);font-size:19px;font-weight:600;min-height:58px}
+#banner::before{content:"●";color:var(--mute)}
+#banner.ok{border-color:#34f5a566;box-shadow:0 0 30px #34f5a533}#banner.ok::before{content:"✓";color:var(--ok)}
+#banner.err{border-color:#ff5d7388;background:#3a0f18d8;box-shadow:0 0 30px #ff5d7344}#banner.err::before{content:"!";color:var(--err);font-weight:900}
+#banner.warn::before{content:"⚠";color:var(--warn)}
+#hold{height:6px;background:#fff3;border-radius:4px;overflow:hidden;margin-top:10px;display:none}
+#holdFill{height:100%;width:0;background:var(--ok)}
+#result{position:absolute;inset:0;background:#0b0f17f2;padding:24px;overflow:auto;display:none}
+.tag{display:inline-block;padding:6px 12px;border-radius:999px;background:#34f5a522;color:var(--ok);font-weight:700;font-size:13px;margin-bottom:14px}
+.list{list-style:none;padding:0;margin:8px 0 14px}.list li{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}.list li span:last-child{color:var(--mute);text-align:right}
+.hint{color:var(--ok);font-weight:700}
+aside{display:flex;flex-direction:column;gap:14px;align-self:start}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px;backdrop-filter:blur(12px)}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:#ffffff0a;border:1px solid var(--line);border-radius:16px;padding:12px}
+.tile small{display:block;color:var(--mute);font-size:12px}.tile b{font-size:28px;letter-spacing:-.02em}
+.tile.hot{background:linear-gradient(135deg,#ff8a3d33,#ff5d7333);border-color:#ff8a3d66}
+.step{display:flex;gap:10px;align-items:center;padding:8px;border-radius:12px;opacity:.55}.step.cur{opacity:1;background:#ffffff10}
+.ic{font-size:20px}.sm{flex:1}.row{display:flex;justify-content:space-between;font-size:14px}
+.pb{height:5px;background:#ffffff1c;border-radius:9px;margin-top:6px;overflow:hidden}.pb i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--ok))}
+button{background:linear-gradient(135deg,var(--acc),var(--ok));color:#07131d;border:0;border-radius:12px;padding:11px 14px;font-weight:700;cursor:pointer;font-size:14px;width:100%;margin-top:8px}
+button.sec{background:#ffffff14;color:var(--ink)}
+.wt{display:flex;justify-content:space-between;align-items:center;font-size:14px}
+input{width:88px;background:#ffffff12;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:8px;font-size:15px}
+small{color:var(--mute)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{padding:6px 10px;border-radius:999px;background:#ffffff12;border:1px solid var(--line);font-size:13px;cursor:pointer}
+.chips input{display:none}.chips label:has(input:checked){background:linear-gradient(135deg,var(--acc),var(--ok));color:#07131d;font-weight:700}
+select{background:#ffffff12;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:8px;font-size:14px}select option{color:#000}
+.hist{display:flex;gap:6px;align-items:flex-end;height:64px;margin:10px 0}.hist i{flex:1;background:linear-gradient(var(--acc),var(--ok));border-radius:6px 6px 2px 2px}
+#fx{transform:none;z-index:5;pointer-events:none}
+#dbg{position:absolute;left:12px;top:64px;background:#000c;color:#7dffb3;font:12px/1.5 monospace;padding:8px 10px;border-radius:8px;display:none;white-space:pre;z-index:6}
+</style>
+</head>
+<body>
+<header><div class="logo">⚡</div><div><h1>Flex<em>Lens</em></h1><span>Твоё тело — джойстик. Камера видит каждую ошибку</span></div></header>
+<div id="app">
+  <div id="stage">
+    <video id="video" playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div id="hud">
+      <div id="top"><div id="exName"></div><div class="cnt"><div id="counter"></div><div id="barw"><div id="bar"></div></div></div></div>
+      <div id="center"></div>
+      <div><div id="banner">Загрузка модели…</div><div id="hold"><div id="holdFill"></div></div></div>
+    </div>
+    <div id="result"></div>
+    <canvas id="fx"></canvas>
+    <div id="dbg"></div>
+  </div>
+  <aside>
+    <div class="card"><div class="tiles">
+      <div class="tile"><small>Повторы</small><b id="sOk">0</b></div>
+      <div class="tile"><small>Ошибки</small><b id="sErr" style="color:var(--err)">0</b></div>
+      <div class="tile hot"><small>Ккал</small><b id="sKcal">0.0</b></div>
+      <div class="tile"><small>Время</small><b id="sTime">0:00</b></div>
+    </div></div>
+    <div class="card" id="steps"></div>
+    <div class="card"><label class="wt">Твой вес, кг <input id="weight" type="number" min="30" max="200"></label>
+      <label class="wt" style="margin-top:10px">Уровень <select id="level"><option value="0.6">Лёгкий</option><option value="1" selected>Средний</option><option value="1.5">Сложный</option></select></label>
+      <div class="chips" id="chips" style="margin:10px 0"></div><small>Выбери упражнения и уровень до старта. Вес нужен для калорий.</small></div>
+    <div class="card"><small>Жест-управление: подними руку выше головы на 1.5 сек — старт.</small>
+      <button id="voiceBtn" class="sec">Голосовые подсказки: вкл</button>
+      <button id="soundBtn" class="sec">Звуки: вкл</button>
+      <button id="fsBtn" class="sec">Полный экран</button>
+      <button id="startBtn" class="sec">Старт (запасная кнопка)</button>
+      <button id="skipBtn" class="sec">Пропустить упражнение</button></div>
+  </aside>
+</div>
+
+<script type="module">
+let PoseLandmarker, FilesetResolver;
+
+const $ = id => document.getElementById(id);
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
+const TARGET = 5;
+let weight = 70; try { weight = +localStorage.getItem("weight") || 70; } catch {}
+const kcalOf = (i, sec) => EX[i].met * weight * sec / 3600;      // ккал = MET × вес(кг) × время(ч)
+const totalKcal = () => stats.kc.reduce((a, b) => a + b, 0);
+let ac = null, soundOn = true, dbgOn = false, fpsN = 0, fps = 0;
+function beep(f, d = .12, t = "sine") {
+  if (!soundOn) return;
+  try { ac = ac || new AudioContext(); ac.resume(); const o = ac.createOscillator(), g = ac.createGain(); o.type = t; o.frequency.value = f; g.gain.value = .08; o.connect(g); g.connect(ac.destination); o.start(); g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + d); o.stop(ac.currentTime + d); } catch {}
+}
+function confetti() {
+  const c = $("fx"), x = c.getContext("2d"); c.width = c.clientWidth; c.height = c.clientHeight;
+  const P = Array.from({ length: 140 }, () => ({ x: Math.random() * c.width, y: -Math.random() * c.height * .5, v: 2 + Math.random() * 4, r: 5 + Math.random() * 6, h: Math.random() * 360, s: Math.random() * 2 - 1 }));
+  let n = 0; (function f() { x.clearRect(0, 0, c.width, c.height); P.forEach(q => { q.y += q.v; q.x += q.s; x.fillStyle = `hsl(${q.h} 90% 60%)`; x.fillRect(q.x, q.y, q.r, q.r * .6); }); if (++n < 260) requestAnimationFrame(f); else x.clearRect(0, 0, c.width, c.height); })();
+}
+function saveHist(e) {
+  let h = []; try { h = JSON.parse(localStorage.getItem("fl_hist") || "[]"); } catch {}
+  const best = Math.max(0, ...h.map(x => x.score)); h.push(e); h = h.slice(-12);
+  try { localStorage.setItem("fl_hist", JSON.stringify(h)); } catch {}
+  return { h, best, record: best > 0 && e.score > best };
+}
+function shareCard(e) {
+  const c = document.createElement("canvas"); c.width = c.height = 1080; const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, 1080, 1080); g.addColorStop(0, "#2b2470"); g.addColorStop(1, "#0d8f7a"); x.fillStyle = g; x.fillRect(0, 0, 1080, 1080);
+  x.fillStyle = "#fff"; x.font = "bold 96px sans-serif"; x.fillText("FlexLens", 80, 160); x.font = "600 44px sans-serif"; x.fillText("Моя тренировка", 80, 230);
+  [["Очки", e.score], ["Ккал", e.kcal], ["Точность", e.acc + "%"], ["Техника", e.form + "/100"]].forEach(([k, v], i) => { x.font = "40px sans-serif"; x.fillStyle = "#ffffffaa"; x.fillText(k, 80, 440 + i * 150); x.font = "bold 100px sans-serif"; x.fillStyle = "#fff"; x.fillText(String(v), 480, 460 + i * 150); });
+  const a = document.createElement("a"); a.href = c.toDataURL("image/png"); a.download = "flexlens.png"; a.click();
+}
+const ICON = ["🦵", "🙌", "↔️", "💪", "🔥", "🧘"];            // сколько ВЕРНЫХ повторов нужно в каждом упражнении
+const HOLD_MS = 1500;        // сколько держать руку для жеста «старт»
+
+// ---------- математика ----------
+const ang = (a, b, c) => {
+  const v1 = { x: a.x - b.x, y: a.y - b.y }, v2 = { x: c.x - b.x, y: c.y - b.y };
+  const m = Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y) || 1;
+  return Math.acos(Math.max(-1, Math.min(1, (v1.x * v2.x + v1.y * v2.y) / m))) * 180 / Math.PI;
+};
+const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+// Для упражнений «боком»: берём ту сторону тела, которую камера видит лучше
+function sideOf(p) {
+  const L = [11, 13, 15, 23, 25, 27], R = [12, 14, 16, 24, 26, 28], core = [0, 3, 4, 5];
+  const vis = ids => Math.min(...ids.filter((_, i) => core.includes(i)).map(i => p[i].v));
+  const ids = vis(L) >= vis(R) ? L : R;
+  const [sh, el, wr, hip, kn, an] = ids.map(i => p[i]);
+  return { sh, el, wr, hip, kn, an, ids, vis: vis(ids) };
+}
+// Отклонение таза от прямой «плечо–стопа» в долях длины тела: + провис, − таз слишком высоко
+function hipDev(s) {
+  const dx = s.an.x - s.sh.x; if (Math.abs(dx) < 1) return 0;
+  const t = (s.hip.x - s.sh.x) / dx, ly = s.sh.y + t * (s.an.y - s.sh.y);
+  return (s.hip.y - ly) / dist(s.sh, s.an);
+}
+
+// ---------- упражнения ----------
+// step(p, st) -> { live:{t,m}, bad:[индексы точек], rep:{ok,key,msg,bad} | null }
+// p — сглаженные точки тела (пиксели), st — состояние упражнения
+const EX = [
+{
+  id: "squat", name: "Приседания", met: 5, sec: 3,
+  how: "Встань лицом к камере, ноги на ширину плеч.\nПриседай до угла в коленях около 90°.",
+  need: [11, 12, 23, 24, 25, 26, 27, 28],
+  needMsg: "Отойди от камеры: в кадре должно быть всё тело от головы до стоп",
+  step(p, st) {
+    const ka = (ang(p[23], p[25], p[27]) + ang(p[24], p[26], p[28])) / 2;
+    const kd = Math.abs(p[25].x - p[26].x), ad = Math.abs(p[27].x - p[28].x), sw = Math.abs(p[11].x - p[12].x);
+    st.dbg = `колено ${ka | 0}° | колени/стопы ${(kd / ad).toFixed(2)} | мин ${st.min | 0}°`;
+    const o = { live: null, bad: [], rep: null };
+    if (st.phase !== "down") {
+      o.live = ad < sw * 0.7 ? { t: "warn", m: "Поставь ноги шире — на ширину плеч" } : { t: "info", m: "Присядь: таз вниз и назад" };
+      if (ka < 150) { st.phase = "down"; st.min = ka; st.cave = false; }
+    } else {
+      st.min = Math.min(st.min, ka);
+      if (ka < 135 && kd < ad * 0.75) st.cave = true;
+      if (st.cave && ka < 150) { o.bad = [25, 26]; o.live = { t: "err", m: "Колени заваливаются внутрь — разведи их в стороны, по линии носков" }; }
+      else o.live = ka > 110 ? { t: "info", m: "Ещё ниже — до угла в коленях около 90°" } : { t: "ok", m: "Хорошая глубина — вставай" };
+      if (ka > 162) {
+        st.phase = "up";
+        if (st.cave) o.rep = { ok: false, key: "Колени внутрь", msg: "Колени сходились внутрь. Разводи колени в стороны, чтобы они смотрели в ту же сторону, что и носки.", bad: [25, 26] };
+        else if (st.min > 110) o.rep = { ok: false, key: "Мелкий присед", msg: `Присед слишком мелкий: угол в коленях ${Math.round(st.min)}°, нужно 110° или меньше. Отведи таз назад и опустись ниже.`, bad: [23, 24] };
+        else o.rep = { ok: true, q: Math.round(Math.max(55, 100 - Math.max(0, st.min - 90) * 2)) };
+      }
+    }
+    return o;
+  }
+},
+{
+  id: "arms", name: "Руки вверх", met: 3.5, sec: 3,
+  how: "Встань лицом к камере.\nПоднимай обе прямые руки выше головы и опускай вниз.",
+  need: [0, 11, 12, 13, 14, 15, 16],
+  needMsg: "Отойди назад: должны быть видны голова, плечи, локти и кисти",
+  step(p, st) {
+    const sm = mid(p[11], p[12]), sw = Math.abs(p[11].x - p[12].x) || 1;
+    const lw = p[15], rw = p[16];
+    const lowReach = sm.y - Math.max(lw.y, rw.y);     // высота НИЖНЕЙ кисти над плечами
+    const hiReach = sm.y - Math.min(lw.y, rw.y);      // высота ВЕРХНЕЙ кисти
+    const headReach = sm.y - p[0].y;                  // высота носа над плечами
+    const elbow = Math.min(ang(p[11], p[13], p[15]), ang(p[12], p[14], p[16]));
+    const lagName = lw.y > rw.y ? "Левая" : "Правая", lagIdx = lw.y > rw.y ? 15 : 16;
+    st.dbg = `локоть ${elbow | 0}° | над плечами ${lowReach | 0}/${hiReach | 0}px | голова ${headReach | 0}px`;
+    const o = { live: null, bad: [], rep: null };
+    if (st.phase !== "up") {
+      o.live = { t: "info", m: "Подними обе руки вверх над головой" };
+      if (hiReach > 0) { st.phase = "up"; st.best = -1e9; st.elb = 180; st.hi = 0; st.diff = 0; st.lag = ""; st.lagIdx = 15; }
+    } else {
+      st.hi = Math.max(st.hi, hiReach);
+      if (lowReach > st.best) { st.best = lowReach; st.elb = elbow; }
+      const d = Math.abs(lw.y - rw.y);
+      if (d > st.diff) { st.diff = d; st.lag = lagName; st.lagIdx = lagIdx; }
+      if (d > sw * 0.4 && hiReach > 0) { o.bad = [lagIdx]; o.live = { t: "err", m: `${lagName} рука отстаёт — поднимай обе руки одновременно` }; }
+      else if (lowReach > headReach * 0.9 && elbow < 145) { o.bad = [13, 14]; o.live = { t: "err", m: "Выпрями локти — руки должны быть прямыми" }; }
+      else if (lowReach < headReach) o.live = { t: "info", m: "Выше — кисти должны быть выше головы" };
+      else o.live = { t: "ok", m: "Верхняя точка — опускай руки" };
+      if (hiReach < 0) {
+        st.phase = "down";
+        if (st.hi < sw * 0.3) return o;               // случайное движение — не считаем
+        if (st.best < headReach) o.rep = { ok: false, key: "Руки низко", msg: "Руки не дошли до верха: подними обе кисти выше уровня головы.", bad: [15, 16] };
+        else if (st.diff > sw * 0.4) o.rep = { ok: false, key: "Руки несинхронно", msg: `${st.lag} рука отставала. Поднимай и опускай руки синхронно, в одном темпе.`, bad: [st.lagIdx] };
+        else if (st.elb < 145) o.rep = { ok: false, key: "Согнуты локти", msg: `Локти согнуты (${Math.round(st.elb)}° вместо 160°+). Вытягивай руки полностью вверх.`, bad: [13, 14] };
+        else o.rep = { ok: true, q: Math.round(Math.max(55, 100 - Math.max(0, 170 - st.elb) * 1.5)) };
+      }
+    }
+    return o;
+  }
+},
+{
+  id: "bend", name: "Наклоны в стороны", met: 2.5, sec: 3,
+  how: "Встань прямо, ноги на ширину плеч.\nНаклоняй корпус влево и вправо по очереди, таз не двигай.",
+  need: [11, 12, 23, 24, 27, 28],
+  needMsg: "Отойди от камеры: в кадре должно быть всё тело",
+  step(p, st) {
+    const sm = mid(p[11], p[12]), hm = mid(p[23], p[24]), am = mid(p[27], p[28]);
+    const sw = Math.abs(p[11].x - p[12].x) || 1;
+    const tilt = Math.atan2(sm.x - hm.x, hm.y - sm.y) * 180 / Math.PI;   // >0 = влево (со стороны человека)
+    st.dbg = `наклон ${tilt.toFixed(1)}° | пик ${(st.peak || 0).toFixed(1)}°`;
+    const o = { live: null, bad: [], rep: null };
+    if (st.phase !== "bend") {
+      st.base = hm.x - am.x;
+      const next = st.last === 1 ? "вправо" : st.last === -1 ? "влево" : "в сторону";
+      o.live = { t: "info", m: `Наклонись ${next}, корпус ровно, без поворота` };
+      if (Math.abs(tilt) > 9) { st.phase = "bend"; st.peak = Math.abs(tilt); st.side = Math.sign(tilt); st.drift = false; }
+    } else {
+      st.peak = Math.max(st.peak, Math.abs(tilt));
+      if (Math.abs(hm.x - am.x - st.base) > sw * 0.35) st.drift = true;
+      if (st.drift && Math.abs(tilt) > 9) { o.bad = [23, 24]; o.live = { t: "err", m: "Таз уходит в сторону — держи таз над стопами, наклоняйся только корпусом" }; }
+      else o.live = st.peak < 18 ? { t: "info", m: "Ниже — наклонись сильнее (нужно 18° и больше)" } : { t: "ok", m: "Отлично — возвращайся в центр" };
+      if (Math.abs(tilt) < 6) {
+        st.phase = "up"; st.last = st.side;
+        if (st.drift) o.rep = { ok: false, key: "Таз уходит", msg: "Таз смещался в сторону. Держи бёдра на месте, движется только верх тела.", bad: [23, 24] };
+        else if (st.peak < 18) o.rep = { ok: false, key: "Слабый наклон", msg: `Наклон слишком маленький: ${Math.round(st.peak)}° из 18°. Наклоняйся глубже, тянись плечом вниз.`, bad: [11, 12] };
+        else o.rep = { ok: true, q: Math.min(100, Math.round(50 + st.peak * 2.5)) };
+      }
+    }
+    return o;
+  }
+},
+{
+  id: "pushup", name: "Отжимания", met: 8, sec: 3, target: 5, prep: 10000,
+  how: "Прими упор лёжа и повернись к камере БОКОМ.\nОпускайся до угла в локтях около 90°, тело — прямая линия.",
+  need: [],
+  step(p, st) {
+    const s = sideOf(p), o = { live: null, bad: [], rep: null };
+    if (s.vis < .5 || s.el.v < .5 || s.wr.v < .5) { o.live = { t: "warn", m: "Повернись боком к камере: должны быть видны плечо, локоть, таз и стопы" }; return o; }
+    if (Math.abs(s.sh.y - s.an.y) > dist(s.sh, s.an) * 0.5) { o.live = { t: "warn", m: "Прими упор лёжа: тело должно быть почти горизонтально" }; return o; }
+    const el = ang(s.sh, s.el, s.wr), dev = hipDev(s), hipI = s.ids[3], elI = s.ids[1];
+    st.dbg = `локоть ${el | 0}° | таз ${(dev * 100).toFixed(1)}% | мин ${st.min | 0}°`;
+    if (st.phase !== "down") {
+      o.live = { t: "info", m: "Опускайся, сгибая локти" };
+      if (el < 130) { st.phase = "down"; st.min = el; st.sag = dev; st.pike = dev; }
+    } else {
+      st.min = Math.min(st.min, el); st.sag = Math.max(st.sag, dev); st.pike = Math.min(st.pike, dev);
+      if (dev > 0.08) { o.bad = [hipI]; o.live = { t: "err", m: "Таз провисает — напряги пресс и ягодицы, держи тело одной линией" }; }
+      else if (dev < -0.10) { o.bad = [hipI]; o.live = { t: "err", m: "Таз слишком высоко — опусти таз в линию с плечами и пятками" }; }
+      else o.live = el > 100 ? { t: "info", m: "Ниже — опустись до угла в локтях около 90°" } : { t: "ok", m: "Хорошо — выжимай вверх" };
+      if (el > 155) {
+        st.phase = "up";
+        if (st.sag > 0.08) o.rep = { ok: false, key: "Таз провисает", msg: "Таз проваливался вниз. Напряги пресс и ягодицы, чтобы плечи, таз и пятки были на одной линии.", bad: [hipI] };
+        else if (st.pike < -0.10) o.rep = { ok: false, key: "Таз высоко", msg: "Таз был поднят слишком высоко. Опусти его в одну линию с плечами и пятками.", bad: [hipI] };
+        else if (st.min > 100) o.rep = { ok: false, key: "Неглубокое отжимание", msg: `Отжимание неглубокое: угол в локтях ${Math.round(st.min)}°, нужно 100° или меньше. Опустись ниже.`, bad: [elI] };
+        else o.rep = { ok: true, q: Math.round(Math.max(55, 100 - Math.max(0, st.min - 80) * 2 - Math.max(st.sag, -st.pike) * 100)) };
+      }
+    }
+    return o;
+  }
+},
+{
+  id: "situp", name: "Пресс", met: 6, sec: 3, target: 8, prep: 10000,
+  how: "Ляг на спину, колени согнуты, стопы на полу.\nПовернись к камере БОКОМ. Поднимай корпус к коленям.",
+  need: [],
+  step(p, st) {
+    const s = sideOf(p), o = { live: null, bad: [], rep: null };
+    if (s.vis < .5) { o.live = { t: "warn", m: "Повернись боком к камере: должны быть видны плечо, таз, колени и стопы" }; return o; }
+    const t = ang(s.sh, s.hip, s.kn), kneeA = ang(s.hip, s.kn, s.an), now = performance.now(), hipI = s.ids[3], knI = s.ids[4];
+    st.dbg = `корпус ${t | 0}° | колено ${kneeA | 0}° | мин ${st.min | 0}°`;
+    if (st.phase !== "up") {
+      o.live = kneeA > 140 ? { t: "warn", m: "Согни колени, стопы поставь на пол" } : { t: "info", m: "Поднимай корпус к коленям" };
+      if (t < 110) { st.phase = "up"; st.min = t; st.t0 = now; st.straight = false; }
+    } else {
+      st.min = Math.min(st.min, t);
+      if (kneeA > 145) st.straight = true;
+      if (st.straight && kneeA > 145) { o.bad = [knI]; o.live = { t: "err", m: "Ноги выпрямились — держи колени согнутыми, стопы на полу" }; }
+      else o.live = st.min > 85 ? { t: "info", m: "Выше — тянись корпусом к коленям" } : { t: "ok", m: "Хорошо — плавно опускайся" };
+      if (t > 120) {
+        st.phase = "down"; const dur = (now - st.t0) / 1000;
+        if (st.min > 85) o.rep = { ok: false, key: "Неполный подъём", msg: `Подъём неполный: угол корпуса ${Math.round(st.min)}°, нужно 85° или меньше. Поднимись выше, тянись грудью к коленям.`, bad: [hipI] };
+        else if (st.straight) o.rep = { ok: false, key: "Ноги выпрямлены", msg: "Ноги выпрямлялись. Держи колени согнутыми, стопы прижаты к полу.", bad: [knI] };
+        else if (dur < 1.2) o.rep = { ok: false, key: "Слишком быстро", msg: `Повтор за ${dur.toFixed(1)} с — слишком быстро. Не рывками: подъём и спуск по 1–2 секунды.`, bad: [hipI] };
+        else o.rep = { ok: true, q: Math.round(Math.max(55, 100 - Math.max(0, st.min - 60) * 1.5)) };
+      }
+    }
+    return o;
+  }
+},
+{
+  id: "plank", name: "Планка", met: 3.8, target: 20, unit: "с", prep: 10000,
+  how: "Встань в планку на предплечьях или прямых руках.\nПовернись к камере БОКОМ. Держи тело прямой линией 20 секунд.",
+  need: [],
+  step(p, st) {
+    const s = sideOf(p), o = { live: null, bad: [], rep: null }, dt = st.dt || 0, hipI = s.ids[3];
+    if (s.vis < .5) { o.live = { t: "warn", m: "Повернись боком к камере: должно быть видно всё тело" }; return o; }
+    if (Math.abs(s.sh.y - s.an.y) > dist(s.sh, s.an) * 0.5) { o.live = { t: "warn", m: "Прими планку: тело должно быть почти горизонтально" }; return o; }
+    const dev = hipDev(s); let err = null; st.dbg = `таз ${(dev * 100).toFixed(1)}% | держу ${(st.good || 0).toFixed(1)} с`;
+    if (dev > 0.07) err = { key: "Таз провисает", msg: "Таз провисает — подтяни пупок к позвоночнику и напряги ягодицы, тело — одна линия." };
+    else if (dev < -0.08) err = { key: "Таз высоко", msg: "Таз слишком высоко — опусти его в линию плеч и пяток." };
+    if (err) {
+      st.badT = (st.badT || 0) + dt; st.goodRun = 0; o.bad = [hipI]; o.live = { t: "err", m: err.msg };
+      if (st.badT > 0.6 && !st.flag) { st.flag = true; o.rep = { ok: false, key: err.key, msg: err.msg, bad: [hipI] }; }
+    } else {
+      st.badT = 0; st.goodRun = (st.goodRun || 0) + dt; if (st.goodRun > 0.8) st.flag = false;
+      st.good = (st.good || 0) + dt;
+      o.live = { t: "ok", m: `Держишь ровно! Осталось ${Math.max(0, Math.ceil(this.target - st.good))} с` };
+    }
+    o.secs = Math.floor(st.good || 0);
+    return o;
+  }
+}];
+
+const sel = EX.map(() => true); let LV = 1;
+EX.forEach(e => e.base = e.target || TARGET);
+const applyLevel = () => EX.forEach(e => e.target = Math.max(2, Math.round(e.base * LV)));
+applyLevel();
+
+// ---------- состояние приложения ----------
+let landmarker, phase = "loading", idx = 0, st = {}, readyUntil = 0, holdStart = 0;
+let stats, flashUntil = 0, flash = null, lastSpeak = 0, lastSpoken = "", voice = true, sm = null;
+
+const newStats = () => ({ ok: EX.map(() => 0), err: EX.map(() => 0), kc: EX.map(() => 0), q: [], mistakes: {}, t0: performance.now() });
+function setBanner(t, m) { const b = $("banner"); b.className = t || ""; b.textContent = m; }
+function speak(text) {
+  const now = performance.now();
+  if (!voice || !("speechSynthesis" in window) || text === lastSpoken && now - lastSpeak < 6000 || now - lastSpeak < 2500) return;
+  lastSpeak = now; lastSpoken = text; speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); u.lang = "ru-RU"; speechSynthesis.speak(u);
+}
+function renderSide() {
+  const sum = a => a.reduce((x, y) => x + y, 0);
+  $("sOk").textContent = sum(stats.ok.filter((_, i) => !EX[i].unit)); $("sErr").textContent = sum(stats.err);
+  $("sKcal").textContent = totalKcal().toFixed(1);
+  $("steps").innerHTML = EX.map((e, i) => { if (!sel[i]) return ""; const t = e.target || TARGET, pct = Math.min(100, stats.ok[i] / t * 100);
+    return `<div class="step ${i === idx && phase !== "result" && phase !== "menu" ? "cur" : ""}"><span class="ic">${ICON[i]}</span><div class="sm"><div class="row"><b>${e.name}</b><span>${stats.ok[i]}/${t}${e.unit ? " " + e.unit : ""}</span></div><div class="pb"><i style="width:${pct}%"></i></div></div></div>`; }).join("");
+}
+function begin() {
+  applyLevel(); if (!sel.some(Boolean)) sel.fill(true); stats = newStats(); idx = sel.findIndex(Boolean); $("result").style.display = "none"; renderSide(); goReady();
+}
+function goReady() {
+  phase = "ready"; readyUntil = performance.now() + (EX[idx].prep || 5000); st = {};
+  $("exName").textContent = ""; $("counter").textContent = "";
+}
+function nextExercise() { do idx++; while (idx < EX.length && !sel[idx]); idx >= EX.length ? finish() : goReady(); }
+function finish() {
+  phase = "result"; renderSide();
+  const sum = a => a.reduce((x, y) => x + y, 0);
+  const ok = sum(stats.ok.filter((_, i) => !EX[i].unit)), secs = sum(stats.ok.filter((_, i) => EX[i].unit)), er = sum(stats.err), total = ok + er;
+  const acc = total ? Math.round(ok / total * 100) : 100, score = Math.max(0, ok * 100 + secs * 10 - er * 25);
+  const sec = Math.round((performance.now() - stats.t0) / 1000);
+  const mist = Object.values(stats.mistakes);
+  const form = stats.q.length ? Math.round(sum(stats.q) / stats.q.length) : 100;
+  const entry = { d: Date.now(), score, kcal: totalKcal().toFixed(1), acc, form };
+  const { h, best, record } = saveHist(entry), mx = Math.max(...h.map(x => x.score), 1);
+  const histHtml = `<small>Последние тренировки (очки)</small><div class="hist">${h.map(x => `<i style="height:${Math.max(6, x.score / mx * 60)}px" title="${x.score}"></i>`).join("")}</div>`;
+  $("result").innerHTML = `<div class="tag">${record ? "🏆 Новый рекорд!" : "Тренировка завершена"}</div>
+    <div class="tiles"><div class="tile"><small>Очки</small><b>${score}</b></div><div class="tile"><small>Точность</small><b>${acc}%</b></div><div class="tile"><small>Техника</small><b>${form}</b></div><div class="tile"><small>Рекорд</small><b>${Math.max(score, best)}</b></div><div class="tile hot"><small>Сожжено, ккал</small><b>${totalKcal().toFixed(1)}</b></div><div class="tile"><small>Время</small><b>${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}</b></div></div>
+    <ul class="list">${EX.map((e, i) => !sel[i] ? "" : `<li><span>${ICON[i]} ${e.name}</span><span>${e.unit ? `${stats.ok[i]} с из ${e.target}` : `верных ${stats.ok[i]}`} · ошибок ${stats.err[i]} · ${stats.kc[i].toFixed(1)} ккал</span></li>`).join("")}</ul>
+    <h3>${mist.length ? "Над чем поработать" : "Ошибок не было — отличная техника!"}</h3>
+    <ul class="list">${mist.map(m => `<li><span><b>${m.key}</b> ×${m.n}</span><span>${m.msg}</span></li>`).join("")}</ul>
+    ${histHtml}<small>Калории — оценка по формуле MET × вес × время, точность около ±20%.</small>
+    <p class="hint">Подними руку выше головы на 1.5 сек, чтобы повторить</p><button id="againBtn">Повторить</button><button id="shareBtn" class="sec">Скачать карточку результата</button>`;
+  $("result").style.display = "block";
+  $("againBtn").onclick = begin; $("shareBtn").onclick = () => shareCard(entry);
+  confetti(); [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .2), i * 140));
+  $("exName").textContent = ""; $("counter").textContent = "";
+  speak(`Готово. Ваш результат: ${score} очков, точность ${acc} процентов. Сожжено около ${Math.round(totalKcal())} калорий.`);
+}
+
+// ---------- жест «рука вверх» = кнопка ----------
+function handGesture(p, now) {
+  const up = p && p[0].v > .5 && ((p[15].v > .5 && p[15].y < p[0].y - 10) || (p[16].v > .5 && p[16].y < p[0].y - 10));
+  $("hold").style.display = "block";
+  if (up) { holdStart = holdStart || now; const k = Math.min(1, (now - holdStart) / HOLD_MS); $("holdFill").style.width = k * 100 + "%"; if (k >= 1) { holdStart = 0; $("holdFill").style.width = "0"; return true; } }
+  else { holdStart = 0; $("holdFill").style.width = "0"; }
+  return false;
+}
+
+// ---------- рисование ----------
+function draw(p, bad) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!p) return;
+  const badSet = new Set(bad || []);
+  ctx.lineWidth = 5; ctx.lineCap = "round";
+  for (const { start: a, end: b } of PoseLandmarker.POSE_CONNECTIONS) {
+    if (a < 11 || b < 11 || p[a].v < .4 || p[b].v < .4) continue;
+    ctx.strokeStyle = badSet.has(a) || badSet.has(b) ? "#ff5d73" : "#34f5a5"; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.moveTo(p[a].x, p[a].y); ctx.lineTo(p[b].x, p[b].y); ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  p.forEach((q, i) => {
+    if (i !== 0 && i < 11 || q.v < .4) return;
+    const isBad = badSet.has(i);
+    ctx.fillStyle = isBad ? "#ff5a5f" : "#fff"; ctx.beginPath(); ctx.arc(q.x, q.y, isBad ? 12 : 5, 0, 7); ctx.fill();
+  });
+}
+
+// ---------- главный цикл ----------
+let lastT = -1;
+function loop() {
+  requestAnimationFrame(loop);
+  if (!landmarker || video.readyState < 2 || video.currentTime === lastT) return;
+  lastT = video.currentTime;
+  const now = performance.now();
+  const res = landmarker.detectForVideo(video, now); fpsN++;
+  let p = null;
+  if (res.landmarks && res.landmarks[0]) {
+    const raw = res.landmarks[0].map(l => ({ x: l.x * canvas.width, y: l.y * canvas.height, v: l.visibility ?? 1 }));
+    sm = sm ? raw.map((q, i) => ({ x: sm[i].x * .5 + q.x * .5, y: sm[i].y * .5 + q.y * .5, v: q.v })) : raw;   // сглаживание
+    p = sm;
+  } else sm = null;
+
+  let bad = [];
+  if (phase === "menu") {
+    setBanner(p ? "info" : "warn", p ? "Подними руку выше головы и держи 1.5 сек — начнём" : "Встань перед камерой так, чтобы было видно тело");
+    $("center").textContent = `FlexLens\n${EX.length} упражнений · подсказки по технике`;
+    if (handGesture(p, now)) begin();
+  } else if (phase === "ready") {
+    const e = EX[idx], left = Math.ceil((readyUntil - now) / 1000);
+    $("hold").style.display = "none";
+    $("center").textContent = `${idx + 1}/${EX.length}: ${e.name}\n${e.how}\n\nСтарт через ${Math.max(left, 0)}`;
+    setBanner("info", "Займи стартовую позицию");
+    if (now >= readyUntil) { phase = "active"; st = {}; $("center").textContent = ""; $("exName").textContent = e.name; speak(e.name + ". Начали!"); }
+  } else if (phase === "active") {
+    const e = EX[idx];
+    $("hold").style.display = "none";
+    $("exName").textContent = e.name; $("counter").textContent = `${stats.ok[idx]}/${e.target || TARGET}${e.unit || ""}`; $("bar").style.width = Math.min(100, stats.ok[idx] / (e.target || TARGET) * 100) + "%";
+    if (!p || !e.need.every(i => p[i].v > .5)) { setBanner("warn", p ? e.needMsg : "⏸ Пауза — вернись в кадр"); st.lastNow = 0; }
+    else {
+      st.dt = st.lastNow ? Math.min(0.25, (now - st.lastNow) / 1000) : 0; st.lastNow = now;
+      const o = e.step(p, st); bad = o.bad;
+      if (o.secs !== undefined && o.secs !== stats.ok[idx]) { stats.kc[idx] += kcalOf(idx, o.secs - stats.ok[idx]); stats.ok[idx] = o.secs; renderSide(); }
+      if (o.rep) {
+        if (o.rep.ok) { stats.ok[idx]++; stats.kc[idx] += kcalOf(idx, e.sec); renderSide(); const q = o.rep.q ?? 90; stats.q.push(q); beep(880); setTimeout(() => beep(1175), 110); flash = { t: q >= 80 ? "ok" : "warn", m: `Верно! Техника ${q}/100${q < 80 ? " — можно чище" : ""} · повтор ${stats.ok[idx]}/${e.target} · ${totalKcal().toFixed(1)} ккал` }; }
+        else {
+          stats.err[idx]++; bad = o.rep.bad;
+          const m = stats.mistakes[e.id + o.rep.key] ||= { key: o.rep.key, n: 0, msg: o.rep.msg }; m.n++; m.msg = o.rep.msg;
+          stats.q.push(35); beep(200, .25, "sawtooth"); flash = { t: "err", m: o.rep.msg }; speak(o.rep.msg);
+        }
+        flashUntil = now + 3000; renderSide();
+      }
+      if (stats.ok[idx] >= e.target) { if (e.unit) stats.q.push(Math.max(40, 100 - stats.err[idx] * 15)); beep(1320, .2); setTimeout(nextExercise, 900); phase = "between"; }
+      const show = now < flashUntil ? flash : o.live;
+      if (show) { setBanner(show.t, show.m); if (show.t === "err" && !o.rep) speak(show.m); }
+    }
+  } else if (phase === "result") {
+    if (handGesture(p, now)) begin();
+  }
+  if (dbgOn) $("dbg").textContent = `${phase} · ${EX[idx] ? EX[idx].id : "-"} · fps ${fps}\nфаза: ${st.phase || "-"}\n${st.dbg || ""}`;
+  draw(p, bad);
+}
+
+// ---------- запуск ----------
+// Понятный текст для каждой причины, почему камера не запустилась
+function camError(err) {
+  const n = err && err.name;
+  if (n === "NotAllowedError" || n === "SecurityError") return "Камера запрещена. Нажми на значок замка/камеры слева от адреса сайта → «Разрешить камеру», затем нажми «Повторить запуск». Если запрет стоит в Windows: Параметры → Конфиденциальность → Камера → разрешить приложениям и браузеру.";
+  if (n === "NotFoundError" || n === "OverconstrainedError") return "Камера не найдена. Проверь, что веб-камера подключена и включена (на ноутбуке бывает кнопка/шторка на камере или клавиша F-ряда).";
+  if (n === "NotReadableError" || n === "AbortError") return "Камера занята другой программой (Zoom, Discord, Telegram, OBS, другая вкладка). Закрой их и нажми «Повторить запуск».";
+  return "Не удалось включить камеру: " + (err && err.message || err);
+}
+async function openCamera() {
+  if (!window.isSecureContext) throw { name: "Insecure" };
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw { name: "NoApi" };
+  // Сначала с желаемым разрешением, если не вышло — с любыми настройками камеры
+  const tries = [{ width: { ideal: 960 }, height: { ideal: 720 }, facingMode: "user" }, { facingMode: "user" }, true];
+  let last;
+  for (const v of tries) {
+    try { return await navigator.mediaDevices.getUserMedia({ video: v, audio: false }); }
+    catch (e) { last = e; if (e.name === "NotAllowedError" || e.name === "SecurityError") break; }
+  }
+  throw last;
+}
+async function loadVision() {
+  // Сначала локальные файлы (работает без интернета), потом два разных CDN
+  const libs = ["./vendor", "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14", "https://unpkg.com/@mediapipe/tasks-vision@0.10.14"];
+  let lib = null, lastErr;
+  for (const l of libs) {
+    try { ({ PoseLandmarker, FilesetResolver } = await import(l + "/vision_bundle.mjs")); lib = l; break; } catch (e) { lastErr = e; }
+  }
+  if (!lib) throw lastErr;
+  let model = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+  try { if ((await fetch("./models/pose_landmarker_lite.task", { method: "HEAD" })).ok) model = "./models/pose_landmarker_lite.task"; } catch {}
+  const fs = await FilesetResolver.forVisionTasks(lib + "/wasm");
+  const opts = d => ({ baseOptions: { modelAssetPath: model, delegate: d }, runningMode: "VIDEO", numPoses: 1 });
+  try { return await PoseLandmarker.createFromOptions(fs, opts("GPU")); }
+  catch { return await PoseLandmarker.createFromOptions(fs, opts("CPU")); }
+}
+let loopOn = false;
+async function init() {
+  phase = "loading"; $("startBtn").textContent = "Старт (запасная кнопка)";
+  // 1) камера
+  setBanner("", "Включаю камеру… Если браузер спросит — нажми «Разрешить»");
+  try {
+    if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+    const stream = await openCamera();
+    video.srcObject = stream;
+    if (video.readyState < 1) await new Promise(r => video.addEventListener("loadedmetadata", r, { once: true }));
+    await video.play().catch(() => {});
+    canvas.width = video.videoWidth || 960; canvas.height = video.videoHeight || 720;
+    stream.getVideoTracks()[0].addEventListener("ended", () => { phase = "error"; setBanner("err", "Камера отключилась. Подключи её и нажми «Повторить запуск»."); $("startBtn").textContent = "Повторить запуск"; });
+  } catch (err) {
+    phase = "error"; $("startBtn").textContent = "Повторить запуск";
+    const msg = err.name === "Insecure" ? "Браузер даёт камеру только сайтам на https:// или localhost. Сейчас адрес страницы: " + location.origin + ". Открой сайт по https (например, GitHub Pages / Netlify) или запусти локально через localhost."
+      : err.name === "NoApi" ? "Этот браузер не даёт доступ к камере. Открой сайт в обычном Chrome, Edge или Safari (не во встроенном браузере Telegram/Instagram)."
+      : camError(err);
+    setBanner("err", msg); console.error(err); return;
+  }
+  // 2) модель распознавания позы
+  if (!landmarker) {
+    setBanner("", "Камера работает ✓ Загружаю модель распознавания тела…");
+    try { landmarker = await loadVision(); }
+    catch (err) {
+      phase = "error"; $("startBtn").textContent = "Повторить запуск"; console.error(err);
+      setBanner("err", "Камера работает, но не загрузилась модель распознавания тела (нужен интернет: cdn.jsdelivr.net и storage.googleapis.com). Проверь интернет/VPN и нажми «Повторить запуск». (" + (err && err.message || err) + ")");
+      return;
+    }
+  }
+  stats = newStats(); renderSide(); phase = "menu";
+  if (!loopOn) { loopOn = true; loop(); }
+}
+$("voiceBtn").onclick = e => { voice = !voice; e.target.textContent = "Голосовые подсказки: " + (voice ? "вкл" : "выкл"); if (!voice) speechSynthesis.cancel(); };
+$("startBtn").onclick = () => { if (phase === "error") init(); else if (phase === "menu" || phase === "result") begin(); };
+$("skipBtn").onclick = () => { if (phase === "active" || phase === "ready") nextExercise(); };
+$("weight").value = weight;
+$("weight").onchange = e => { weight = Math.min(200, Math.max(30, +e.target.value || 70)); e.target.value = weight; try { localStorage.setItem("weight", weight); } catch {} };
+setInterval(() => { if (stats && ["ready", "active", "between"].includes(phase)) { const t = Math.round((performance.now() - stats.t0) / 1000); $("sTime").textContent = Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); } }, 500);
+$("chips").innerHTML = EX.map((e, i) => `<label><input type="checkbox" data-i="${i}" checked>${ICON[i]} ${e.name}</label>`).join("");
+$("chips").onchange = ev => { const i = +ev.target.dataset.i; sel[i] = ev.target.checked; if (!sel.some(Boolean)) { sel[i] = true; ev.target.checked = true; } if (stats) renderSide(); };
+$("level").onchange = e => { LV = +e.target.value; applyLevel(); if (stats) renderSide(); };
+$("soundBtn").onclick = e => { soundOn = !soundOn; e.target.textContent = "Звуки: " + (soundOn ? "вкл" : "выкл"); };
+$("fsBtn").onclick = () => document.fullscreenElement ? document.exitFullscreen() : $("stage").requestFullscreen();
+addEventListener("keydown", e => { if (["INPUT", "SELECT"].includes(e.target.tagName)) return; if (e.key.toLowerCase() === "d" || e.key.toLowerCase() === "в") { dbgOn = !dbgOn; $("dbg").style.display = dbgOn ? "block" : "none"; } });
+setInterval(() => { fps = fpsN; fpsN = 0; }, 1000);
+init();
+</script>
+</body>
+</html>
