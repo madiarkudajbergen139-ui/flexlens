@@ -3,92 +3,224 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FlexLens — тело вместо джойстика</title>
+<meta name="theme-color" content="#131118">
+<title>FlexLens — тренер через веб-камеру</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans+Extra+Condensed:ital,wght@0,600;0,800;1,800&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0b0f17;--card:#ffffff0d;--line:#ffffff1a;--ink:#f2f5fa;--mute:#93a0b4;--ok:#34f5a5;--err:#ff5d73;--warn:#ffcf5c;--acc:#7c8cff}
+:root{
+  --bg:#131118;        /* графит */
+  --s1:#1B1922;        /* панели */
+  --s2:#24212D;        /* элементы внутри панелей */
+  --s3:#2F2B3A;        /* hover / поля */
+  --line:#2E2A38;
+  --ink:#F4F2F7;
+  --mute:#9C97A8;
+  --amber:#FFB020;     /* акцент — как цифры на спортивных часах */
+  --amber-ink:#1E1400;
+  --amber-soft:#FFB02018;
+  --ok:#3DDC84;
+  --err:#FF4D4F;
+  --info:#6CB6FF;
+  --num:"Fira Sans Extra Condensed","Arial Narrow",sans-serif;
+  --txt:"Onest",system-ui,sans-serif;
+  --r-l:20px;--r-m:14px;--r-s:10px;
+}
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;color:var(--ink);font-family:Inter,"Segoe UI",system-ui,sans-serif;background:radial-gradient(900px 500px at 8% -10%,#3b2f8f66,transparent),radial-gradient(800px 500px at 100% 0,#0d8f7a55,transparent),var(--bg)}
-header{max-width:1240px;margin:0 auto;padding:18px 18px 0;display:flex;align-items:center;gap:12px}
-.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--acc),var(--ok));display:grid;place-items:center;font-size:20px}
-header h1{font-size:26px;font-weight:800;margin:0;letter-spacing:-.04em}header h1 em{font-style:normal;background:linear-gradient(90deg,var(--acc),var(--ok));-webkit-background-clip:text;background-clip:text;color:transparent}header span{color:var(--mute);font-size:13px}
-#app{display:grid;grid-template-columns:1fr 340px;gap:18px;max-width:1240px;margin:0 auto;padding:18px}
-@media(max-width:900px){#app{grid-template-columns:1fr}}
-#stage{position:relative;background:#000;border-radius:24px;overflow:hidden;aspect-ratio:4/3;border:1px solid var(--line);box-shadow:0 30px 80px #0009}
-video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;padding:18px}
-#top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-#exName{padding:8px 14px;border-radius:999px;background:#0009;backdrop-filter:blur(10px);border:1px solid var(--line);font-weight:700}
+html{color-scheme:dark}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--txt);-webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.pic{width:24px;height:24px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* шапка */
+header{max-width:1280px;margin:0 auto;padding:20px 24px 0;display:flex;align-items:center;gap:14px}
+.mark{width:38px;height:38px;border-radius:11px;background:var(--amber);color:var(--amber-ink);display:grid;place-items:center}
+.mark .pic{width:24px;height:24px;stroke-width:2.4}
+header h1{margin:0;font:italic 800 30px/1 var(--num);letter-spacing:.005em}
+header p{margin:2px 0 0;color:var(--mute);font-size:13px}
+.status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);background:var(--s1);border:1px solid var(--line);border-radius:999px;padding:7px 14px}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+body.live .status i{background:var(--ok);box-shadow:0 0 0 4px #3DDC8426}
+body.live .status span::after{content:"Камера работает"}
+body:not(.live) .status span::after{content:"Камера выключена"}
+@media(max-width:640px){header p,.status{display:none}}
+
+#app{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;max-width:1280px;margin:0 auto;padding:18px 24px 40px}
+@media(max-width:960px){#app{grid-template-columns:1fr}}
+@media(max-width:560px){#app,header{padding-left:14px;padding-right:14px}}
+
+/* сцена */
+#stage{position:relative;border-radius:var(--r-l);overflow:hidden;background:var(--s1);border:1px solid var(--line)}
+#stage:fullscreen{display:flex;flex-direction:column;border-radius:0;border:0}
+.cam{position:relative;aspect-ratio:4/3;background:#000}
+#stage:fullscreen .cam{flex:1;aspect-ratio:auto}
+.cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cam::after{content:"";position:absolute;inset:auto 0 0 0;height:30%;background:linear-gradient(transparent,#00000073);pointer-events:none}
+#hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:flex-start;padding:18px;z-index:1}
+#exName{display:inline-flex;align-items:center;gap:8px;background:var(--amber);color:var(--amber-ink);font:800 21px/1 var(--num);padding:8px 16px 8px 10px;border-radius:999px}
+#exName .pic{width:24px;height:24px;stroke-width:2.3}
 #exName:empty{display:none}
-.cnt{text-align:right}#counter{font-size:54px;font-weight:800;letter-spacing:-.03em;line-height:1;text-shadow:0 2px 12px #000}
-#barw{height:6px;width:150px;margin-left:auto;background:#fff3;border-radius:9px;margin-top:8px;overflow:hidden}
-#bar{height:100%;width:0;background:linear-gradient(90deg,var(--acc),var(--ok));transition:width .3s}
-#center{align-self:center;text-align:center;max-width:88%;font-size:22px;font-weight:600;padding:20px 26px;border-radius:20px;background:#0b0f17b8;backdrop-filter:blur(14px);border:1px solid var(--line);white-space:pre-line}
+#center{margin:auto;align-self:center;max-width:min(500px,92%);background:#1B1922F0;border:1px solid var(--line);color:var(--ink);border-radius:var(--r-m);padding:22px 26px;font-size:16px;line-height:1.5;white-space:pre-line;text-align:center;color:#D9D5E0}
+#center::first-line{font:800 30px/1.3 var(--num);color:var(--ink)}
 #center:empty{display:none}
-#banner{display:flex;gap:12px;align-items:center;padding:14px 18px;border-radius:16px;background:#0b0f17c0;backdrop-filter:blur(14px);border:1px solid var(--line);font-size:19px;font-weight:600;min-height:58px}
-#banner::before{content:"●";color:var(--mute)}
-#banner.ok{border-color:#34f5a566;box-shadow:0 0 30px #34f5a533}#banner.ok::before{content:"✓";color:var(--ok)}
-#banner.err{border-color:#ff5d7388;background:#3a0f18d8;box-shadow:0 0 30px #ff5d7344}#banner.err::before{content:"!";color:var(--err);font-weight:900}
-#banner.warn::before{content:"⚠";color:var(--warn)}
-#hold{height:6px;background:#fff3;border-radius:4px;overflow:hidden;margin-top:10px;display:none}
-#holdFill{height:100%;width:0;background:var(--ok)}
-#result{position:absolute;inset:0;background:#0b0f17f2;padding:24px;overflow:auto;display:none}
-.tag{display:inline-block;padding:6px 12px;border-radius:999px;background:#34f5a522;color:var(--ok);font-weight:700;font-size:13px;margin-bottom:14px}
-.list{list-style:none;padding:0;margin:8px 0 14px}.list li{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}.list li span:last-child{color:var(--mute);text-align:right}
-.hint{color:var(--ok);font-weight:700}
+
+/* табло */
+.board{display:grid;grid-template-columns:auto 1fr;min-height:92px;border-top:1px solid var(--line)}
+.score{padding:14px 22px;display:flex;flex-direction:column;justify-content:center;min-width:160px;border-right:1px solid var(--line)}
+#counter{font:italic 800 58px/.95 var(--num);color:var(--amber);font-variant-numeric:tabular-nums}
+#counter:empty::before{content:"0/0";color:var(--s3)}
+#barw{height:6px;background:var(--s2);margin-top:10px;border-radius:9px;overflow:hidden}
+#bar{height:100%;width:0;background:var(--amber);border-radius:9px;transition:width .35s ease}
+.msg{display:flex;flex-direction:column;justify-content:center;padding:12px 18px}
+#banner{display:flex;align-items:center;gap:12px;font-size:17px;font-weight:500;line-height:1.35;color:var(--ink)}
+#banner::before{content:"";flex:none;width:10px;height:10px;border-radius:50%;background:var(--mute)}
+#banner.info::before{background:var(--info)}
+#banner.ok::before{background:var(--ok);box-shadow:0 0 0 5px #3DDC8426}
+#banner.warn::before{background:var(--amber);box-shadow:0 0 0 5px var(--amber-soft)}
+#banner.err{background:var(--err);color:#fff;border-radius:var(--r-s);padding:12px 14px;font-weight:600}
+#banner.err::before{background:#fff}
+#hold{height:6px;background:var(--s2);border-radius:9px;overflow:hidden;margin-top:10px;display:none}
+#holdFill{height:100%;width:0;background:var(--amber)}
+@media(max-width:560px){.board{grid-template-columns:1fr}.score{border-right:0;border-bottom:1px solid var(--line);flex-direction:row;align-items:center;gap:16px}#barw{flex:1;margin:0}#counter{font-size:44px}#banner{font-size:15px}}
+
+/* итоги */
+#result{position:absolute;inset:0;background:var(--s1);color:var(--ink);padding:28px;overflow:auto;display:none;z-index:4}
+.tag{font:italic 800 40px/1.05 var(--num);margin:0 0 20px;color:var(--amber)}
+#result h3{font:800 22px/1.2 var(--num);margin:26px 0 6px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tile{background:var(--s2);border-radius:var(--r-m);padding:14px 16px}
+.tile small{display:flex;align-items:center;gap:7px;color:var(--mute);font-size:13px}
+.tile b{display:block;margin-top:4px;font:italic 800 36px/1 var(--num);font-variant-numeric:tabular-nums}
+.tile.hot b{color:var(--amber)}
+.list{list-style:none;padding:0;margin:6px 0 12px}
+.list li{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
+.list li span:last-child{color:var(--mute);text-align:right;max-width:62%}
+.list .ln{display:inline-flex;align-items:center;gap:10px;font-weight:500}
+.list .pic{color:var(--amber)}
+.hint{color:var(--mute);margin:18px 0 4px}
+.hist{display:flex;gap:6px;align-items:flex-end;height:70px;margin:10px 0 12px}
+.hist i{flex:1;background:var(--s3);border-radius:6px 6px 3px 3px}
+.hist i:last-child{background:var(--amber)}
+#result button{width:auto;display:inline-flex;margin-right:8px;padding:12px 20px}
+@media(max-width:560px){.tiles{grid-template-columns:repeat(2,1fr)}#result{padding:20px}}
+
+/* боковая колонка */
 aside{display:flex;flex-direction:column;gap:14px;align-self:start}
-.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:14px;backdrop-filter:blur(12px)}
-.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.tile{background:#ffffff0a;border:1px solid var(--line);border-radius:16px;padding:12px}
-.tile small{display:block;color:var(--mute);font-size:12px}.tile b{font-size:28px;letter-spacing:-.02em}
-.tile.hot{background:linear-gradient(135deg,#ff8a3d33,#ff5d7333);border-color:#ff8a3d66}
-.step{display:flex;gap:10px;align-items:center;padding:8px;border-radius:12px;opacity:.55}.step.cur{opacity:1;background:#ffffff10}
-.ic{font-size:20px}.sm{flex:1}.row{display:flex;justify-content:space-between;font-size:14px}
-.pb{height:5px;background:#ffffff1c;border-radius:9px;margin-top:6px;overflow:hidden}.pb i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--ok))}
-button{background:linear-gradient(135deg,var(--acc),var(--ok));color:#07131d;border:0;border-radius:12px;padding:11px 14px;font-weight:700;cursor:pointer;font-size:14px;width:100%;margin-top:8px}
-button.sec{background:#ffffff14;color:var(--ink)}
-.wt{display:flex;justify-content:space-between;align-items:center;font-size:14px}
-input{width:88px;background:#ffffff12;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:8px;font-size:15px}
-small{color:var(--mute)}
-.chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{padding:6px 10px;border-radius:999px;background:#ffffff12;border:1px solid var(--line);font-size:13px;cursor:pointer}
-.chips input{display:none}.chips label:has(input:checked){background:linear-gradient(135deg,var(--acc),var(--ok));color:#07131d;font-weight:700}
-select{background:#ffffff12;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:8px;font-size:14px}select option{color:#000}
-.hist{display:flex;gap:6px;align-items:flex-end;height:64px;margin:10px 0}.hist i{flex:1;background:linear-gradient(var(--acc),var(--ok));border-radius:6px 6px 2px 2px}
-#fx{transform:none;z-index:5;pointer-events:none}
-#flDebug{position:absolute;left:12px;top:64px;background:#000c;color:#7dffb3;font:12px/1.5 monospace;padding:8px 10px;border-radius:8px;display:none;white-space:pre;z-index:6}
+.panel{background:var(--s1);border:1px solid var(--line);border-radius:var(--r-l);padding:16px}
+.panel h2{font:600 13px/1 var(--txt);color:var(--mute);margin:2px 2px 12px}
+aside .tiles{grid-template-columns:1fr 1fr;gap:8px}
+aside .tile{padding:12px 14px}
+aside .tile b{font-size:32px}
+
+/* план */
+#steps{display:flex;flex-direction:column;gap:4px}
+.step{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:center;padding:8px;border-radius:var(--r-m);color:var(--mute)}
+.step.cur{background:var(--s2);color:var(--ink)}
+.ic{width:40px;height:40px;border-radius:12px;background:var(--s2);display:grid;place-items:center;color:var(--mute)}
+.step.cur .ic{background:var(--amber);color:var(--amber-ink)}
+.row{display:flex;justify-content:space-between;align-items:baseline;font-size:14px}
+.row b{font-weight:600}
+.row span{font:italic 800 17px/1 var(--num);font-variant-numeric:tabular-nums}
+.step.cur .row span{color:var(--amber)}
+.pb{height:4px;background:var(--s3);border-radius:9px;margin-top:7px;overflow:hidden}
+.pb i{display:block;height:100%;background:var(--amber);border-radius:9px}
+
+/* настройки */
+.field{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;font-size:14px}
+input[type=number]{font:600 15px var(--txt);color:var(--ink);background:var(--s2);border:1px solid var(--line);border-radius:var(--r-s);padding:9px 12px;width:92px;text-align:right}
+input[type=number]:focus{border-color:var(--amber);outline:none}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--s2);border-radius:12px;padding:4px;gap:4px;margin-bottom:14px}
+.seg label{text-align:center;padding:8px 4px;border-radius:9px;font-size:14px;font-weight:500;color:var(--mute);cursor:pointer;position:relative}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label:has(input:checked){background:var(--s3);color:var(--ink);box-shadow:inset 0 0 0 1px #ffffff14}
+.seg label:has(input:focus-visible){outline:2px solid var(--amber)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chips label{position:relative;display:inline-flex;align-items:center;gap:6px;padding:7px 12px 7px 9px;border-radius:999px;background:var(--s2);border:1px solid transparent;font-size:13px;font-weight:500;color:var(--mute);cursor:pointer;user-select:none}
+.chips .pic{width:18px;height:18px}
+.chips input{position:absolute;opacity:0;pointer-events:none}
+.chips label:has(input:checked){background:var(--amber-soft);border-color:#FFB02066;color:var(--ink)}
+.chips label:has(input:checked) .pic{color:var(--amber)}
+.chips label:has(input:focus-visible){outline:2px solid var(--amber);outline-offset:2px}
+small{color:var(--mute);font-size:12.5px}
+
+/* кнопки */
+button{display:inline-flex;align-items:center;justify-content:center;gap:9px;width:100%;font:600 15px var(--txt);border-radius:var(--r-m);padding:12px 14px;cursor:pointer;border:1px solid var(--line);background:var(--s2);color:var(--ink);transition:background .15s,transform .1s}
+button:hover{background:var(--s3)}
+button:active{transform:scale(.98)}
+button + button{margin-top:8px}
+button.primary{background:var(--amber);border-color:var(--amber);color:var(--amber-ink);font-size:16px;font-weight:700;padding:15px}
+button.primary:hover{background:#FFC04D}
+.toggle{justify-content:flex-start;background:transparent;border:0;padding:10px 4px;border-radius:var(--r-s);color:var(--ink);font-weight:500}
+.toggle:hover{background:var(--s2)}
+.toggle + .toggle{margin-top:0}
+.toggle.plain::after{display:none}
+.toggle .i{color:var(--mute)}
+.toggle span{flex:1;text-align:left}
+.toggle::after{content:"";width:40px;height:24px;border-radius:999px;background:var(--s3);flex:none;background-image:radial-gradient(circle at 12px 12px,#fff 8px,transparent 8.5px);background-repeat:no-repeat;transition:background-color .2s,background-position .2s}
+.toggle[aria-pressed=true]::after{background-color:var(--amber);background-position:16px 0}
+.sep{height:1px;background:var(--line);margin:12px 0}
+.note{margin:12px 2px 0;font-size:12.5px;color:var(--mute);line-height:1.45}
+
+#fx{position:absolute;inset:0;width:100%;height:100%;z-index:5;pointer-events:none}
+#flDebug{position:absolute;left:12px;bottom:12px;background:#000c;color:#fff;font:12px/1.5 monospace;padding:8px 10px;border-radius:8px;display:none;white-space:pre;z-index:6}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<header><div class="logo">⚡</div><div><h1>Flex<em>Lens</em></h1><span>Твоё тело — джойстик. Камера видит каждую ошибку</span></div></header>
+<header>
+  <div class="mark"><svg class="pic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6.2" r="2.2" fill="currentColor" stroke="none"/><path d="M12 8.6V15l-2.5 6M12 15l2.5 6M12 10.2L8 3.5M12 10.2l4-6.7"/></svg></div>
+  <div><h1>FlexLens</h1><p>Тренер через веб-камеру: считает повторы и поправляет технику</p></div>
+  <div class="status"><i></i><span></span></div>
+</header>
 <div id="app">
-  <div id="stage">
-    <video id="video" playsinline muted></video>
-    <canvas id="canvas"></canvas>
-    <div id="hud">
-      <div id="top"><div id="exName"></div><div class="cnt"><div id="counter"></div><div id="barw"><div id="bar"></div></div></div></div>
-      <div id="center"></div>
-      <div><div id="banner">Загрузка модели…</div><div id="hold"><div id="holdFill"></div></div></div>
+  <main>
+    <div id="stage">
+      <div class="cam">
+        <video id="video" playsinline muted></video>
+        <canvas id="canvas"></canvas>
+        <div id="hud"><div id="exName"></div><div id="center"></div></div>
+        <div id="flDebug"></div>
+      </div>
+      <div class="board">
+        <div class="score"><div id="counter"></div><div id="barw"><div id="bar"></div></div></div>
+        <div class="msg"><div id="banner" role="status">Загрузка модели…</div><div id="hold"><div id="holdFill"></div></div></div>
+      </div>
+      <div id="result"></div>
+      <canvas id="fx"></canvas>
     </div>
-    <div id="result"></div>
-    <canvas id="fx"></canvas>
-    <div id="flDebug"></div>
-  </div>
+  </main>
   <aside>
-    <div class="card"><div class="tiles">
-      <div class="tile"><small>Повторы</small><b id="sOk">0</b></div>
-      <div class="tile"><small>Ошибки</small><b id="sErr" style="color:var(--err)">0</b></div>
-      <div class="tile hot"><small>Ккал</small><b id="sKcal">0.0</b></div>
-      <div class="tile"><small>Время</small><b id="sTime">0:00</b></div>
-    </div></div>
-    <div class="card" id="steps"></div>
-    <div class="card"><label class="wt">Твой вес, кг <input id="weight" type="number" min="30" max="200"></label>
-      <label class="wt" style="margin-top:10px">Уровень <select id="level"><option value="0.6">Лёгкий</option><option value="1" selected>Средний</option><option value="1.5">Сложный</option></select></label>
-      <div class="chips" id="chips" style="margin:10px 0"></div><small>Выбери упражнения и уровень до старта. Вес нужен для калорий.</small></div>
-    <div class="card"><small>Жест-управление: подними руку выше головы на 1.5 сек — старт.</small>
-      <button id="voiceBtn" class="sec">Голосовые подсказки: вкл</button>
-      <button id="soundBtn" class="sec">Звуки: вкл</button>
-      <button id="fsBtn" class="sec">Полный экран</button>
-      <button id="startBtn" class="sec">Старт (запасная кнопка)</button>
-      <button id="skipBtn" class="sec">Пропустить упражнение</button></div>
+    <section class="panel">
+      <div class="tiles">
+        <div class="tile"><small><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Повторы</small><b id="sOk">0</b></div>
+        <div class="tile"><small><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>Ошибки</small><b id="sErr" style="color:var(--err)">0</b></div>
+        <div class="tile hot"><small><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4.5 3-6.5.5 2 1.5 3 3 3 0-3-1-5 0-7.5z"/></svg>Ккал</small><b id="sKcal">0.0</b></div>
+        <div class="tile"><small><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Время</small><b id="sTime">0:00</b></div>
+      </div>
+    </section>
+    <section class="panel"><h2>План тренировки</h2><div id="steps"></div></section>
+    <section class="panel">
+      <h2>Настройки</h2>
+      <label class="field">Твой вес, кг <input id="weight" type="number" min="30" max="200"></label>
+      <div class="seg" id="level" role="radiogroup" aria-label="Уровень">
+        <label><input type="radio" name="level" value="0.6">Лёгкий</label>
+        <label><input type="radio" name="level" value="1" checked>Средний</label>
+        <label><input type="radio" name="level" value="1.5">Сложный</label>
+      </div>
+      <div class="chips" id="chips"></div>
+      <small>Вес нужен, чтобы посчитать калории.</small>
+    </section>
+    <section class="panel">
+      <button id="startBtn" class="primary"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="none"/></svg><span>Начать тренировку</span></button>
+      <button id="skipBtn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7z" fill="currentColor" stroke="none"/><path d="M18 5v14"/></svg><span>Пропустить упражнение</span></button>
+      <div class="sep"></div>
+      <button id="voiceBtn" class="toggle" aria-pressed="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11h-9l-5 4v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>Голосовые подсказки</span></button>
+      <button id="soundBtn" class="toggle" aria-pressed="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11h-9l-5 4v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>Голос: вкл</span></button><button id="soundBtn" aria-pressed="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"/></svg><span>Звуки</span></button>
+      <button id="fsBtn" class="toggle plain"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Полный экран</span></button>
+      <p class="note">Можно без мыши: подними руку над головой и подержи 1,5 секунды.</p>
+    </section>
   </aside>
 </div>
 
@@ -119,12 +251,23 @@ function saveHist(e) {
 }
 function shareCard(e) {
   const c = document.createElement("canvas"); c.width = c.height = 1080; const x = c.getContext("2d");
-  const g = x.createLinearGradient(0, 0, 1080, 1080); g.addColorStop(0, "#2b2470"); g.addColorStop(1, "#0d8f7a"); x.fillStyle = g; x.fillRect(0, 0, 1080, 1080);
-  x.fillStyle = "#fff"; x.font = "bold 96px sans-serif"; x.fillText("FlexLens", 80, 160); x.font = "600 44px sans-serif"; x.fillText("Моя тренировка", 80, 230);
-  [["Очки", e.score], ["Ккал", e.kcal], ["Точность", e.acc + "%"], ["Техника", e.form + "/100"]].forEach(([k, v], i) => { x.font = "40px sans-serif"; x.fillStyle = "#ffffffaa"; x.fillText(k, 80, 440 + i * 150); x.font = "bold 100px sans-serif"; x.fillStyle = "#fff"; x.fillText(String(v), 480, 460 + i * 150); });
+  const F = '"Fira Sans Extra Condensed", sans-serif'; x.fillStyle = "#131118"; x.fillRect(0, 0, 1080, 1080); x.fillStyle = "#FFB020"; x.fillRect(80, 300, 140, 10);
+  x.fillStyle = "#fff"; x.font = "italic 800 120px " + F; x.fillText("FlexLens", 80, 180); x.font = "600 48px " + F; x.fillText("Моя тренировка", 80, 250);
+  [["Очки", e.score], ["Ккал", e.kcal], ["Точность", e.acc + "%"], ["Техника", e.form + "/100"]].forEach(([k, v], i) => { x.font = "600 44px " + F; x.fillStyle = "#ffffffb0"; x.fillText(k, 80, 440 + i * 150); x.font = "italic 800 120px " + F; x.fillStyle = "#FFB020"; x.fillText(String(v), 480, 460 + i * 150); });
   const a = document.createElement("a"); a.href = c.toDataURL("image/png"); a.download = "flexlens.png"; a.click();
 }
-const ICON = ["🦵", "🙌", "↔️", "💪", "🔥", "🧘"];            // сколько ВЕРНЫХ повторов нужно в каждом упражнении
+// Пиктограммы упражнений (свои SVG, линии — currentColor)
+const PICS = {
+  squat: '<circle cx="12" cy="4.2" r="2.2" fill="currentColor" stroke="none"/><path d="M12 6.6L10 12.6l5.6.4-1 6.6M11.4 8.6h6"/>',
+  arms: '<circle cx="12" cy="6.2" r="2.2" fill="currentColor" stroke="none"/><path d="M12 8.6V15l-2.5 6M12 15l2.5 6M12 10.2L8 3.5M12 10.2l4-6.7"/>',
+  bend: '<circle cx="9.3" cy="5.2" r="2.2" fill="currentColor" stroke="none"/><path d="M10 7.5l2.2 7-2.2 6.5M12.2 14.5l2.6 6.5M10.7 9.3L13.6 4M11.3 10.4l3.9 2.6"/>',
+  pushup: '<circle cx="5" cy="9.5" r="2.2" fill="currentColor" stroke="none"/><path d="M7.2 10.3L21 15l.3 2M8.6 10.8V17M3 19h19"/>',
+  situp: '<circle cx="6.8" cy="8.3" r="2.2" fill="currentColor" stroke="none"/><path d="M8.3 10.6L12 17.5l4-5 4 5.5M9.3 12.4h5M2.5 19h19"/>',
+  plank: '<circle cx="4.8" cy="10.8" r="2.2" fill="currentColor" stroke="none"/><path d="M7.1 11.4L21 14.2l.3 2.3M8.3 11.8v4.8H13M3 18.5h19"/>'
+};
+const pic = id => `<svg class="pic" viewBox="0 0 24 24" aria-hidden="true">${PICS[id]}</svg>`;
+function setEx(e) { if ($("exName").dataset.id !== e.id) { $("exName").innerHTML = pic(e.id) + "<span>" + e.name + "</span>"; $("exName").dataset.id = e.id; } }
+function clearEx() { $("exName").innerHTML = ""; delete $("exName").dataset.id; }
 const HOLD_MS = 1500;        // сколько держать руку для жеста «старт»
 
 // ---------- математика ----------
@@ -354,15 +497,15 @@ function renderSide() {
   const sum = a => a.reduce((x, y) => x + y, 0);
   $("sOk").textContent = sum(stats.ok.filter((_, i) => !EX[i].unit)); $("sErr").textContent = sum(stats.err);
   $("sKcal").textContent = totalKcal().toFixed(1);
-  $("steps").innerHTML = EX.map((e, i) => { if (!sel[i]) return ""; const t = e.target || TARGET, pct = Math.min(100, stats.ok[i] / t * 100);
-    return `<div class="step ${i === idx && phase !== "result" && phase !== "menu" ? "cur" : ""}"><span class="ic">${ICON[i]}</span><div class="sm"><div class="row"><b>${e.name}</b><span>${stats.ok[i]}/${t}${e.unit ? " " + e.unit : ""}</span></div><div class="pb"><i style="width:${pct}%"></i></div></div></div>`; }).join("");
+  $("steps").innerHTML = EX.map((e, i) => { if (!sel[i]) return ""; const n = sel.slice(0, i + 1).filter(Boolean).length, t = e.target || TARGET, pct = Math.min(100, stats.ok[i] / t * 100);
+    return `<div class="step ${i === idx && phase !== "result" && phase !== "menu" ? "cur" : ""}"><span class="ic" title="Упражнение ${n}">${pic(e.id)}</span><div class="sm"><div class="row"><b>${e.name}</b><span>${stats.ok[i]}/${t}${e.unit ? " " + e.unit : ""}</span></div><div class="pb"><i style="width:${pct}%"></i></div></div></div>`; }).join("");
 }
 function begin() {
   applyLevel(); if (!sel.some(Boolean)) sel.fill(true); stats = newStats(); idx = sel.findIndex(Boolean); $("result").style.display = "none"; renderSide(); goReady();
 }
 function goReady() {
   phase = "ready"; readyUntil = performance.now() + (EX[idx].prep || 5000); st = {};
-  $("exName").textContent = ""; $("counter").textContent = "";
+  clearEx(); $("counter").textContent = ""; $("bar").style.width = "0";
 }
 function nextExercise() { do idx++; while (idx < EX.length && !sel[idx]); idx >= EX.length ? finish() : goReady(); }
 function finish() {
@@ -376,17 +519,17 @@ function finish() {
   const entry = { d: Date.now(), score, kcal: totalKcal().toFixed(1), acc, form };
   const { h, best, record } = saveHist(entry), mx = Math.max(...h.map(x => x.score), 1);
   const histHtml = `<small>Последние тренировки (очки)</small><div class="hist">${h.map(x => `<i style="height:${Math.max(6, x.score / mx * 60)}px" title="${x.score}"></i>`).join("")}</div>`;
-  $("result").innerHTML = `<div class="tag">${record ? "🏆 Новый рекорд!" : "Тренировка завершена"}</div>
+  $("result").innerHTML = `<h2 class="tag">${record ? "Новый рекорд" : "Тренировка завершена"}</h2>
     <div class="tiles"><div class="tile"><small>Очки</small><b>${score}</b></div><div class="tile"><small>Точность</small><b>${acc}%</b></div><div class="tile"><small>Техника</small><b>${form}</b></div><div class="tile"><small>Рекорд</small><b>${Math.max(score, best)}</b></div><div class="tile hot"><small>Сожжено, ккал</small><b>${totalKcal().toFixed(1)}</b></div><div class="tile"><small>Время</small><b>${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}</b></div></div>
-    <ul class="list">${EX.map((e, i) => !sel[i] ? "" : `<li><span>${ICON[i]} ${e.name}</span><span>${e.unit ? `${stats.ok[i]} с из ${e.target}` : `верных ${stats.ok[i]}`} · ошибок ${stats.err[i]} · ${stats.kc[i].toFixed(1)} ккал</span></li>`).join("")}</ul>
+    <ul class="list">${EX.map((e, i) => !sel[i] ? "" : `<li><span class="ln">${pic(e.id)}${e.name}</span><span>${e.unit ? `${stats.ok[i]} с из ${e.target}` : `верных ${stats.ok[i]}`} · ошибок ${stats.err[i]} · ${stats.kc[i].toFixed(1)} ккал</span></li>`).join("")}</ul>
     <h3>${mist.length ? "Над чем поработать" : "Ошибок не было — отличная техника!"}</h3>
     <ul class="list">${mist.map(m => `<li><span><b>${m.key}</b> ×${m.n}</span><span>${m.msg}</span></li>`).join("")}</ul>
     ${histHtml}<small>Калории — оценка по формуле MET × вес × время, точность около ±20%.</small>
-    <p class="hint">Подними руку выше головы на 1.5 сек, чтобы повторить</p><button id="againBtn">Повторить</button><button id="shareBtn" class="sec">Скачать карточку результата</button>`;
+    <p class="hint">Подними руку выше головы на 1.5 сек, чтобы повторить</p><button id="againBtn" class="primary">Начать заново</button><button id="shareBtn">Скачать карточку результата</button>`;
   $("result").style.display = "block";
   $("againBtn").onclick = begin; $("shareBtn").onclick = () => shareCard(entry);
   confetti(); [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .2), i * 140));
-  $("exName").textContent = ""; $("counter").textContent = "";
+  clearEx(); $("counter").textContent = "";
   speak(`Готово. Ваш результат: ${score} очков, точность ${acc} процентов. Сожжено около ${Math.round(totalKcal())} калорий.`);
 }
 
@@ -404,17 +547,16 @@ function draw(p, bad) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!p) return;
   const badSet = new Set(bad || []);
-  ctx.lineWidth = 5; ctx.lineCap = "round";
+  ctx.lineWidth = 4; ctx.lineCap = "round";
   for (const { start: a, end: b } of PoseLandmarker.POSE_CONNECTIONS) {
     if (a < 11 || b < 11 || p[a].v < .4 || p[b].v < .4) continue;
-    ctx.strokeStyle = badSet.has(a) || badSet.has(b) ? "#ff5d73" : "#34f5a5"; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 14;
+    ctx.strokeStyle = badSet.has(a) || badSet.has(b) ? "#FF4D4F" : "#ffffffE6";
     ctx.beginPath(); ctx.moveTo(p[a].x, p[a].y); ctx.lineTo(p[b].x, p[b].y); ctx.stroke();
   }
-  ctx.shadowBlur = 0;
   p.forEach((q, i) => {
     if (i !== 0 && i < 11 || q.v < .4) return;
     const isBad = badSet.has(i);
-    ctx.fillStyle = isBad ? "#ff5a5f" : "#fff"; ctx.beginPath(); ctx.arc(q.x, q.y, isBad ? 12 : 5, 0, 7); ctx.fill();
+    ctx.fillStyle = isBad ? "#FF4D4F" : "#FFB020"; ctx.beginPath(); ctx.arc(q.x, q.y, isBad ? 12 : 6, 0, 7); ctx.fill();
   });
 }
 
@@ -436,18 +578,19 @@ function loop() {
   let bad = [];
   if (phase === "menu") {
     setBanner(p ? "info" : "warn", p ? "Подними руку выше головы и держи 1.5 сек — начнём" : "Встань перед камерой так, чтобы было видно тело");
-    $("center").textContent = `FlexLens\n${EX.length} упражнений · подсказки по технике`;
+    $("center").textContent = `Готов к тренировке\nВыбери упражнения справа и встань так, чтобы камера видела тебя целиком`;
     if (handGesture(p, now)) begin();
   } else if (phase === "ready") {
     const e = EX[idx], left = Math.ceil((readyUntil - now) / 1000);
+    setEx(e);
     $("hold").style.display = "none";
-    $("center").textContent = `${idx + 1}/${EX.length}: ${e.name}\n${e.how}\n\nСтарт через ${Math.max(left, 0)}`;
+    $("center").textContent = `${e.name}\nУпражнение ${sel.slice(0, idx + 1).filter(Boolean).length} из ${sel.filter(Boolean).length}\n\n${e.how}\n\nСтарт через ${Math.max(left, 0)}`;
     setBanner("info", "Займи стартовую позицию");
-    if (now >= readyUntil) { phase = "active"; st = {}; $("center").textContent = ""; $("exName").textContent = e.name; speak(e.name + ". Начали!"); }
+    if (now >= readyUntil) { phase = "active"; st = {}; $("center").textContent = ""; setEx(e); speak(e.name + ". Начали!"); }
   } else if (phase === "active") {
     const e = EX[idx];
     $("hold").style.display = "none";
-    $("exName").textContent = e.name; $("counter").textContent = `${stats.ok[idx]}/${e.target || TARGET}${e.unit || ""}`; $("bar").style.width = Math.min(100, stats.ok[idx] / (e.target || TARGET) * 100) + "%";
+    setEx(e); $("counter").textContent = `${stats.ok[idx]}/${e.target || TARGET}${e.unit || ""}`; $("bar").style.width = Math.min(100, stats.ok[idx] / (e.target || TARGET) * 100) + "%";
     if (!p || !e.need.every(i => p[i].v > .5)) { setBanner("warn", p ? e.needMsg : "⏸ Пауза — вернись в кадр"); st.lastNow = 0; }
     else {
       st.dt = st.lastNow ? Math.min(0.25, (now - st.lastNow) / 1000) : 0; st.lastNow = now;
@@ -511,7 +654,7 @@ async function loadVision() {
 }
 let loopOn = false;
 async function init() {
-  phase = "loading"; $("startBtn").textContent = "Старт (запасная кнопка)";
+  phase = "loading"; $("startBtn").querySelector("span").textContent = "Начать тренировку";
   // 1) камера
   setBanner("", "Включаю камеру… Если браузер спросит — нажми «Разрешить»");
   try {
@@ -520,10 +663,10 @@ async function init() {
     video.srcObject = stream;
     if (video.readyState < 1) await new Promise(r => video.addEventListener("loadedmetadata", r, { once: true }));
     await video.play().catch(() => {});
-    canvas.width = video.videoWidth || 960; canvas.height = video.videoHeight || 720;
-    stream.getVideoTracks()[0].addEventListener("ended", () => { phase = "error"; setBanner("err", "Камера отключилась. Подключи её и нажми «Повторить запуск»."); $("startBtn").textContent = "Повторить запуск"; });
+    canvas.width = video.videoWidth || 960; canvas.height = video.videoHeight || 720; document.body.classList.add("live");
+    stream.getVideoTracks()[0].addEventListener("ended", () => { phase = "error"; document.body.classList.remove("live"); setBanner("err", "Камера отключилась. Подключи её и нажми «Повторить запуск»."); $("startBtn").querySelector("span").textContent = "Повторить запуск"; });
   } catch (err) {
-    phase = "error"; $("startBtn").textContent = "Повторить запуск";
+    phase = "error"; $("startBtn").querySelector("span").textContent = "Повторить запуск";
     const msg = err.name === "Insecure" ? "Браузер даёт камеру только сайтам на https:// или localhost. Сейчас адрес страницы: " + location.origin + ". Открой сайт по https (например, GitHub Pages / Netlify) или запусти локально через localhost."
       : err.name === "NoApi" ? "Этот браузер не даёт доступ к камере. Открой сайт в обычном Chrome, Edge или Safari (не во встроенном браузере Telegram/Instagram)."
       : camError(err);
@@ -534,7 +677,7 @@ async function init() {
     setBanner("", "Камера работает ✓ Загружаю модель распознавания тела…");
     try { landmarker = await loadVision(); }
     catch (err) {
-      phase = "error"; $("startBtn").textContent = "Повторить запуск"; console.error(err);
+      phase = "error"; $("startBtn").querySelector("span").textContent = "Повторить запуск"; console.error(err);
       setBanner("err", "Камера работает, но не загрузилась модель распознавания тела (нужен интернет: cdn.jsdelivr.net и storage.googleapis.com). Проверь интернет/VPN и нажми «Повторить запуск». (" + (err && err.message || err) + ")");
       return;
     }
@@ -542,16 +685,16 @@ async function init() {
   stats = newStats(); renderSide(); phase = "menu";
   if (!loopOn) { loopOn = true; loop(); }
 }
-$("voiceBtn").onclick = e => { voice = !voice; e.target.textContent = "Голосовые подсказки: " + (voice ? "вкл" : "выкл"); if (!voice) speechSynthesis.cancel(); };
+$("voiceBtn").onclick = () => { voice = !voice; const b = $("voiceBtn"); b.setAttribute("aria-pressed", voice); if (!voice) speechSynthesis.cancel(); };
 $("startBtn").onclick = () => { if (phase === "error") init(); else if (phase === "menu" || phase === "result") begin(); };
 $("skipBtn").onclick = () => { if (phase === "active" || phase === "ready") nextExercise(); };
 $("weight").value = weight;
 $("weight").onchange = e => { weight = Math.min(200, Math.max(30, +e.target.value || 70)); e.target.value = weight; try { localStorage.setItem("weight", weight); } catch {} };
 setInterval(() => { if (stats && ["ready", "active", "between"].includes(phase)) { const t = Math.round((performance.now() - stats.t0) / 1000); $("sTime").textContent = Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); } }, 500);
-$("chips").innerHTML = EX.map((e, i) => `<label><input type="checkbox" data-i="${i}" checked>${ICON[i]} ${e.name}</label>`).join("");
+$("chips").innerHTML = EX.map((e, i) => `<label><input type="checkbox" data-i="${i}" checked>${pic(e.id)}${e.name}</label>`).join("");
 $("chips").onchange = ev => { const i = +ev.target.dataset.i; sel[i] = ev.target.checked; if (!sel.some(Boolean)) { sel[i] = true; ev.target.checked = true; } if (stats) renderSide(); };
 $("level").onchange = e => { LV = +e.target.value; applyLevel(); if (stats) renderSide(); };
-$("soundBtn").onclick = e => { soundOn = !soundOn; e.target.textContent = "Звуки: " + (soundOn ? "вкл" : "выкл"); };
+$("soundBtn").onclick = () => { soundOn = !soundOn; const b = $("soundBtn"); b.setAttribute("aria-pressed", soundOn); };
 $("fsBtn").onclick = () => document.fullscreenElement ? document.exitFullscreen() : $("stage").requestFullscreen();
 addEventListener("keydown", e => { if (["INPUT", "SELECT"].includes(e.target.tagName)) return; if (e.key.toLowerCase() === "d" || e.key.toLowerCase() === "в") { dbgOn = !dbgOn; $("flDebug").style.display = dbgOn ? "block" : "none"; } });
 setInterval(() => { fps = fpsN; fpsN = 0; }, 1000);
