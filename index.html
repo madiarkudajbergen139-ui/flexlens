@@ -54,7 +54,7 @@ small{color:var(--mute)}
 select{background:#ffffff12;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:8px;font-size:14px}select option{color:#000}
 .hist{display:flex;gap:6px;align-items:flex-end;height:64px;margin:10px 0}.hist i{flex:1;background:linear-gradient(var(--acc),var(--ok));border-radius:6px 6px 2px 2px}
 #fx{transform:none;z-index:5;pointer-events:none}
-#dbg{position:absolute;left:12px;top:64px;background:#000c;color:#7dffb3;font:12px/1.5 monospace;padding:8px 10px;border-radius:8px;display:none;white-space:pre;z-index:6}
+#flDebug{position:absolute;left:12px;top:64px;background:#000c;color:#7dffb3;font:12px/1.5 monospace;padding:8px 10px;border-radius:8px;display:none;white-space:pre;z-index:6}
 </style>
 </head>
 <body>
@@ -70,7 +70,7 @@ select{background:#ffffff12;border:1px solid var(--line);color:var(--ink);border
     </div>
     <div id="result"></div>
     <canvas id="fx"></canvas>
-    <div id="dbg"></div>
+    <div id="flDebug"></div>
   </div>
   <aside>
     <div class="card"><div class="tiles">
@@ -469,7 +469,7 @@ function loop() {
   } else if (phase === "result") {
     if (handGesture(p, now)) begin();
   }
-  if (dbgOn) $("dbg").textContent = `${phase} · ${EX[idx] ? EX[idx].id : "-"} · fps ${fps}\nфаза: ${st.phase || "-"}\n${st.dbg || ""}`;
+  if (dbgOn) $("flDebug").textContent = `${phase} · ${EX[idx] ? EX[idx].id : "-"} · fps ${fps}\nфаза: ${st.phase || "-"}\n${st.dbg || ""}`;
   draw(p, bad);
 }
 
@@ -553,7 +553,7 @@ $("chips").onchange = ev => { const i = +ev.target.dataset.i; sel[i] = ev.target
 $("level").onchange = e => { LV = +e.target.value; applyLevel(); if (stats) renderSide(); };
 $("soundBtn").onclick = e => { soundOn = !soundOn; e.target.textContent = "Звуки: " + (soundOn ? "вкл" : "выкл"); };
 $("fsBtn").onclick = () => document.fullscreenElement ? document.exitFullscreen() : $("stage").requestFullscreen();
-addEventListener("keydown", e => { if (["INPUT", "SELECT"].includes(e.target.tagName)) return; if (e.key.toLowerCase() === "d" || e.key.toLowerCase() === "в") { dbgOn = !dbgOn; $("dbg").style.display = dbgOn ? "block" : "none"; } });
+addEventListener("keydown", e => { if (["INPUT", "SELECT"].includes(e.target.tagName)) return; if (e.key.toLowerCase() === "d" || e.key.toLowerCase() === "в") { dbgOn = !dbgOn; $("flDebug").style.display = dbgOn ? "block" : "none"; } });
 setInterval(() => { fps = fpsN; fpsN = 0; }, 1000);
 init();
 </script>
