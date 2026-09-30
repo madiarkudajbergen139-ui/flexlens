@@ -53,10 +53,22 @@ body:not(.live) .status span::after{content:"Камера выключена"}
 
 /* сцена */
 #stage{position:relative;border-radius:var(--r-l);overflow:hidden;background:var(--s1);border:1px solid var(--line)}
-#stage:fullscreen{display:flex;flex-direction:column;border-radius:0;border:0}
-.cam{position:relative;aspect-ratio:4/3;background:#000}
-#stage:fullscreen .cam{flex:1;aspect-ratio:auto}
-.cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cam{position:relative;aspect-ratio:4/3;max-height:78vh;margin:0 auto;background:#000}
+.cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transform:scaleX(-1)}
+/* полный экран: настоящий (:fullscreen) и запасной для iPhone (.pseudo) */
+#stage.is-full{display:flex;flex-direction:column;border-radius:0;border:0;width:100%;height:100%}
+#stage.pseudo{position:fixed;inset:0;z-index:1000;height:100vh;height:100dvh}
+#stage.is-full .cam{flex:1;min-height:0;aspect-ratio:auto!important;max-height:none;width:100%}
+body.noscroll{overflow:hidden}
+.fs{position:absolute;top:14px;right:14px;z-index:7;width:auto;margin:0;display:inline-flex;align-items:center;gap:8px;padding:10px;min-width:44px;min-height:44px;border-radius:12px;background:#131118CC;border:1px solid #ffffff24;color:#fff;font-size:14px;font-weight:600}
+.fs:hover{background:#131118}
+.fs > span:last-child{display:none}
+.fs .open,.fs .x{display:grid}
+#stage.is-full .fs{padding:10px 16px 10px 12px}
+#stage.is-full .fs > span:last-child{display:inline}
+.fs .x{display:none!important}
+#stage.is-full .fs .x{display:grid!important}
+#stage.is-full .fs .open{display:none!important}
 .cam::after{content:"";position:absolute;inset:auto 0 0 0;height:30%;background:linear-gradient(transparent,#00000073);pointer-events:none}
 #hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;align-items:flex-start;padding:18px;z-index:1}
 #exName{display:inline-flex;align-items:center;gap:8px;background:var(--amber);color:var(--amber-ink);font:800 21px/1 var(--num);padding:8px 16px 8px 10px;border-radius:999px}
@@ -166,6 +178,41 @@ button.primary:hover{background:#FFC04D}
 #fx{position:absolute;inset:0;width:100%;height:100%;z-index:5;pointer-events:none}
 #flDebug{position:absolute;left:12px;bottom:12px;background:#000c;color:#fff;font:12px/1.5 monospace;padding:8px 10px;border-radius:8px;display:none;white-space:pre;z-index:6}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* телефоны и планшеты */
+@media(max-width:960px){
+  aside .panel.controls{order:-1}
+  aside .tiles{grid-template-columns:repeat(4,1fr)}
+}
+@media(max-width:560px){
+  header{padding-top:14px}
+  header h1{font-size:26px}
+  .mark{width:34px;height:34px;border-radius:10px}
+  #app{gap:12px;padding-top:12px}
+  #stage{border-radius:16px}
+  .panel{border-radius:16px;padding:14px}
+  #hud{padding:12px}
+  #exName{font-size:17px;padding:6px 12px 6px 8px}
+  #exName .pic{width:20px;height:20px}
+  .fs{top:10px;right:10px}
+  #center{padding:16px 18px;font-size:14px}
+  #center::first-line{font-size:24px}
+  .score{padding:10px 14px;min-width:0}
+  .msg{padding:10px 14px}
+  aside .tiles{gap:6px}
+  aside .tile{padding:10px 8px;border-radius:12px}
+  aside .tile small{font-size:11px;gap:4px}
+  aside .tile .i{width:14px;height:14px}
+  aside .tile b{font-size:24px}
+  .tag{font-size:32px}
+  .tile b{font-size:28px}
+  #result button{width:100%;margin:0 0 8px}
+  .list li{flex-direction:column;align-items:flex-start;gap:2px}
+  .list li span:last-child{text-align:left;max-width:none}
+  button{min-height:46px}
+}
+#stage.is-full .board{flex:none}
+@media(max-width:560px){#stage.is-full .score{padding:8px 14px}#stage.is-full #counter{font-size:36px}}
 </style>
 </head>
 <body>
@@ -182,6 +229,7 @@ button.primary:hover{background:#FFC04D}
         <canvas id="canvas"></canvas>
         <div id="hud"><div id="exName"></div><div id="center"></div></div>
         <div id="flDebug"></div>
+        <button id="fsToggle" class="fs" aria-label="Полный экран"><span class="open"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></span><span class="x"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span><span>Выйти</span></button>
       </div>
       <div class="board">
         <div class="score"><div id="counter"></div><div id="barw"><div id="bar"></div></div></div>
@@ -212,7 +260,7 @@ button.primary:hover{background:#FFC04D}
       <div class="chips" id="chips"></div>
       <small>Вес нужен, чтобы посчитать калории.</small>
     </section>
-    <section class="panel">
+    <section class="panel controls">
       <button id="startBtn" class="primary"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="none"/></svg><span>Начать тренировку</span></button>
       <button id="skipBtn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7z" fill="currentColor" stroke="none"/><path d="M18 5v14"/></svg><span>Пропустить упражнение</span></button>
       <div class="sep"></div>
@@ -663,7 +711,7 @@ async function init() {
     video.srcObject = stream;
     if (video.readyState < 1) await new Promise(r => video.addEventListener("loadedmetadata", r, { once: true }));
     await video.play().catch(() => {});
-    canvas.width = video.videoWidth || 960; canvas.height = video.videoHeight || 720; document.body.classList.add("live");
+    canvas.width = video.videoWidth || 960; canvas.height = video.videoHeight || 720; document.body.classList.add("live"); document.querySelector(".cam").style.aspectRatio = canvas.width + " / " + canvas.height;
     stream.getVideoTracks()[0].addEventListener("ended", () => { phase = "error"; document.body.classList.remove("live"); setBanner("err", "Камера отключилась. Подключи её и нажми «Повторить запуск»."); $("startBtn").querySelector("span").textContent = "Повторить запуск"; });
   } catch (err) {
     phase = "error"; $("startBtn").querySelector("span").textContent = "Повторить запуск";
@@ -695,7 +743,34 @@ $("chips").innerHTML = EX.map((e, i) => `<label><input type="checkbox" data-i="$
 $("chips").onchange = ev => { const i = +ev.target.dataset.i; sel[i] = ev.target.checked; if (!sel.some(Boolean)) { sel[i] = true; ev.target.checked = true; } if (stats) renderSide(); };
 $("level").onchange = e => { LV = +e.target.value; applyLevel(); if (stats) renderSide(); };
 $("soundBtn").onclick = () => { soundOn = !soundOn; const b = $("soundBtn"); b.setAttribute("aria-pressed", soundOn); };
-$("fsBtn").onclick = () => document.fullscreenElement ? document.exitFullscreen() : $("stage").requestFullscreen();
+// ---------- полный экран ----------
+const stageEl = $("stage");
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+function syncFull() {
+  const on = !!fsEl() || stageEl.classList.contains("pseudo");
+  stageEl.classList.toggle("is-full", on);
+  $("fsToggle").setAttribute("aria-label", on ? "Выйти из полного экрана" : "Полный экран");
+  $("fsBtn").querySelector("span").textContent = on ? "Выйти из полного экрана" : "Полный экран";
+}
+async function enterFull() {
+  try {
+    if (stageEl.requestFullscreen) await stageEl.requestFullscreen({ navigationUI: "hide" });
+    else if (stageEl.webkitRequestFullscreen) stageEl.webkitRequestFullscreen();
+    else throw new Error("no fullscreen api");
+  } catch {                                   // iPhone Safari: растягиваем сами
+    stageEl.classList.add("pseudo"); document.body.classList.add("noscroll");
+  }
+  syncFull();
+}
+async function exitFull() {
+  if (stageEl.classList.contains("pseudo")) { stageEl.classList.remove("pseudo"); document.body.classList.remove("noscroll"); }
+  else if (fsEl()) { try { await (document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen()); } catch {} }
+  syncFull();
+}
+const toggleFull = () => stageEl.classList.contains("is-full") ? exitFull() : enterFull();
+$("fsBtn").onclick = toggleFull; $("fsToggle").onclick = toggleFull;
+document.addEventListener("fullscreenchange", syncFull); document.addEventListener("webkitfullscreenchange", syncFull);
+addEventListener("keydown", e => { if (e.key === "Escape" && stageEl.classList.contains("pseudo")) exitFull(); });
 addEventListener("keydown", e => { if (["INPUT", "SELECT"].includes(e.target.tagName)) return; if (e.key.toLowerCase() === "d" || e.key.toLowerCase() === "в") { dbgOn = !dbgOn; $("flDebug").style.display = dbgOn ? "block" : "none"; } });
 setInterval(() => { fps = fpsN; fpsN = 0; }, 1000);
 init();
